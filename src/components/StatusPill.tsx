@@ -10,9 +10,9 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { fonts, glass, radius } from '../constants/theme';
-import { BoltIcon, LeafIcon } from './Icons';
+import { BoltIcon, ChevronDownIcon, ClockIcon, LeafIcon } from './Icons';
 
-export type PillKind = 'vent' | 'grace' | 'fade' | 'paused';
+export type PillKind = 'timer' | 'vent' | 'grace' | 'fade' | 'paused';
 
 interface Props {
   kind: PillKind;
@@ -21,10 +21,13 @@ interface Props {
   graceMs?: number;
   onPress?: () => void;
   a11yLabel?: string;
+  /** Shows a chevron: the pill opens the timer picker. */
+  expandable?: boolean;
+  expanded?: boolean;
 }
 
 /** Glassy status capsule at the top of the screen. */
-function StatusPillBase({ kind, label, graceMs = 0, onPress, a11yLabel }: Props) {
+function StatusPillBase({ kind, label, graceMs = 0, onPress, a11yLabel, expandable, expanded }: Props) {
   const drain = useSharedValue(1);
 
   useEffect(() => {
@@ -35,7 +38,8 @@ function StatusPillBase({ kind, label, graceMs = 0, onPress, a11yLabel }: Props)
   }, [kind, graceMs, drain]);
 
   const barStyle = useAnimatedStyle(() => ({ transform: [{ scaleX: drain.value }] }));
-  const icon = kind === 'fade' ? <LeafIcon /> : kind === 'vent' ? <BoltIcon /> : null;
+  const icon =
+    kind === 'fade' ? <LeafIcon /> : kind === 'vent' ? <BoltIcon /> : kind === 'timer' || kind === 'paused' ? <ClockIcon /> : null;
 
   return (
     <Animated.View entering={FadeIn.duration(260)} exiting={FadeOut.duration(200)}>
@@ -44,6 +48,7 @@ function StatusPillBase({ kind, label, graceMs = 0, onPress, a11yLabel }: Props)
         disabled={!onPress}
         accessibilityRole={onPress ? 'button' : 'text'}
         accessibilityLabel={a11yLabel ?? label}
+        accessibilityState={expandable ? { expanded: !!expanded } : undefined}
         accessibilityLiveRegion="polite"
         hitSlop={10}
         style={({ pressed }) => [styles.pill, pressed && styles.pressed]}
@@ -52,6 +57,11 @@ function StatusPillBase({ kind, label, graceMs = 0, onPress, a11yLabel }: Props)
         <Text style={styles.label} numberOfLines={1} maxFontSizeMultiplier={1.3}>
           {label}
         </Text>
+        {expandable && (
+          <View style={expanded ? styles.chevronUp : undefined}>
+            <ChevronDownIcon />
+          </View>
+        )}
         {kind === 'grace' && (
           <View style={styles.track}>
             <Animated.View style={[styles.bar, barStyle]} />
@@ -78,6 +88,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   pressed: { backgroundColor: glass.fillStrong },
+  chevronUp: { transform: [{ rotate: '180deg' }] },
   label: {
     fontFamily: fonts.hand,
     fontSize: 17,

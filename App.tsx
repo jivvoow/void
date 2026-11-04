@@ -8,21 +8,18 @@ import { useEffect, useState } from 'react';
 import { AppState, Modal, Platform, StyleSheet, View, type AppStateStatus } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { Onboarding } from './src/components/Onboarding';
 import { PrivacyCover } from './src/components/PrivacyCover';
 import { useStrings } from './src/i18n';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
-import { SettingsProvider } from './src/state/SettingsContext';
+import { SettingsProvider, useSettings } from './src/state/SettingsContext';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function App() {
   // Fonts are bundled with the app — no network needed at runtime.
   const [loaded, error] = useFonts({ Gaegu_400Regular, Gaegu_700Bold });
-
-  useEffect(() => {
-    if (loaded || error) SplashScreen.hideAsync().catch(() => {});
-  }, [loaded, error]);
 
   if (!loaded && !error) return null;
 
@@ -37,6 +34,7 @@ export default function App() {
 
 function Root() {
   const t = useStrings();
+  const { settings, hydrated, update } = useSettings();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [appState, setAppState] = useState<AppStateStatus>((AppState.currentState as AppStateStatus | null) ?? 'active');
 
@@ -44,6 +42,13 @@ function Root() {
     const sub = AppState.addEventListener('change', setAppState);
     return () => sub.remove();
   }, []);
+
+  // Keep the splash up until saved preferences (timer, guide-seen flag) are read.
+  useEffect(() => {
+    if (hydrated) SplashScreen.hideAsync().catch(() => {});
+  }, [hydrated]);
+
+  if (!hydrated) return null;
 
   return (
     <View style={styles.root}>
@@ -57,9 +62,17 @@ function Root() {
         onRequestClose={() => setSettingsOpen(false)}
       >
         <SafeAreaProvider>
-          <SettingsScreen onClose={() => setSettingsOpen(false)} />
+          <SettingsScreen
+            onClose={() => setSettingsOpen(false)}
+            onReplayGuide={() => {
+              setSettingsOpen(false);
+              update({ onboarded: false });
+            }}
+          />
         </SafeAreaProvider>
       </Modal>
+
+      {!settings.onboarded && <Onboarding onDone={() => update({ onboarded: true })} />}
 
       {/* Hide the words from the app switcher / recents snapshot. */}
       {appState !== 'active' && <PrivacyCover label={t.home.privacyCover} />}

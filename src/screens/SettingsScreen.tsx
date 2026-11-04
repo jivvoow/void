@@ -12,7 +12,7 @@ import { useSettings } from '../state/SettingsContext';
 import type { AnimationLevel, FadeDelay, Locale } from '../types';
 
 /** A deliberately short settings sheet. No dashboards, no stats. */
-export function SettingsScreen({ onClose }: { onClose: () => void }) {
+export function SettingsScreen({ onClose, onReplayGuide }: { onClose: () => void; onReplayGuide: () => void }) {
   const t = useStrings().settings;
   const { settings, update } = useSettings();
   const insets = useSafeAreaInsets();
@@ -68,6 +68,15 @@ export function SettingsScreen({ onClose }: { onClose: () => void }) {
             <Text style={styles.caption}>{t.animationCaption}</Text>
           </View>
         </Section>
+
+        <Pressable
+          onPress={onReplayGuide}
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.card, styles.linkRow, pressed && { opacity: 0.7 }]}
+        >
+          <Text style={styles.rowLabel}>{t.replayGuide}</Text>
+          <Text style={styles.chevron}>›</Text>
+        </Pressable>
 
         <Section title={t.sectionLanguage}>
           <Segmented<Locale>
@@ -199,6 +208,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     elevation: 1,
   },
+  linkRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  chevron: { fontSize: 22, color: palette.inkSoft, marginTop: -2 },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: '#E6DCE8', marginVertical: space.md },
   toggleRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   rowStack: { gap: space.sm },

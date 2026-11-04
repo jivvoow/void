@@ -50,7 +50,9 @@ export function useAutoFade({ delayMs, armed, onGrace, onExpire }: Options) {
       cbs.current.onExpire();
       return;
     }
-    const grace = Math.min(GRACE_WINDOW_MS, delay);
+    // Short delays (e.g. 3s) get a proportionally shorter grace window, so the warning
+    // doesn't flash on every keystroke.
+    const grace = delay <= GRACE_WINDOW_MS ? delay * 0.6 : GRACE_WINDOW_MS;
     const untilGrace = remaining - grace;
     if (untilGrace <= 0) {
       cbs.current.onGrace(remaining);

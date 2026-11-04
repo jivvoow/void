@@ -6,14 +6,21 @@ export const ko = {
   home: {
     prompt: '마음속 답답함,\n여기에 털어놓아요.',
     placeholder: '하고 싶은 말을 아무렇게나 써요...',
-    pillVent: '감정 방출중…',
+    pillVent: (delay: string) => `감정 방출중 · ${delay}`,
+    timerChip: (s: number | null) => (s == null ? '자동 소멸 꺼짐' : `${s}초 뒤 훌훌`),
+    timerShort: (s: number | null) => (s == null ? '꺼짐' : `${s}초`),
+    timerPickerTitle: '멈추면 사라지기까지',
+    a11yTimer: (s: number | null) =>
+      s == null ? '자동 소멸 꺼짐. 눌러서 시간 바꾸기' : `입력을 멈추고 ${s}초 뒤 사라짐. 눌러서 시간 바꾸기`,
+    restHint: (s: number | null) =>
+      s == null ? '다 쓰면 ‘훌훌 날리기’를 꾹 눌러요' : `쓰다가 멈추면 ${s}초 뒤 저절로 사라져요`,
+    releaseBubble: '꾹 누르면 바로 날아가요',
+    a11yKeyboardDown: '키보드 내리기',
     pillGrace: '곧 훌훌 날아가요 · 탭하면 멈춰요',
     pillFade: '지금, 천천히 사라지고 있어요…',
-    pillPaused: '자동 소멸 꺼짐 · 길게 눌러 날려요',
+    pillPaused: '자동 소멸 꺼짐 · 꾹 눌러 날려요',
     clear: '훌훌, 이제 보내줬어요.',
     release: '훌훌 날리기',
-    releaseHint: '길게 눌러요',
-    autoFadeHint: (s: number) => `${s}초 동안 멈추면 훌훌 날아가요`,
     a11ySettings: '설정 열기',
     a11yInput: '감정을 적는 입력창. 내용은 저장되지 않아요.',
     a11yRelease: '훌훌 날리기. 길게 누르면 적은 글이 사라져요.',
@@ -21,8 +28,29 @@ export const ko = {
     privacyCover: '훌훌',
   },
 
+  onboarding: {
+    skip: '건너뛰기',
+    next: '다음',
+    start: '시작하기',
+    steps: [
+      {
+        title: '마음껏 써요',
+        body: '하고 싶은 말을 아무렇게나.\n저장도, 기록도 남지 않아요.',
+      },
+      {
+        title: '멈추면 저절로 사라져요',
+        body: '위쪽 ⏱ 버튼에서 시간을 골라요.\n3초면 거의 바로, 끄면 직접 보낼 때까지.',
+      },
+      {
+        title: '꾹 눌러 훌훌 날리기',
+        body: '‘훌훌 날리기’를 길게 누르면 바로 보내요.\n키보드는 빈 곳을 탭하거나 ⌄ 버튼으로 내려요.',
+      },
+    ],
+  },
+
   settings: {
     title: '설정',
+    replayGuide: '사용법 다시 보기',
     done: '완료',
     sectionFade: '자동 소멸',
     fadeCaption: '마지막으로 입력한 뒤 이 시간이 지나면 글이 사라져요.',

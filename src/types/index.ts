@@ -15,7 +15,7 @@ export type Intensity = 'calm' | 'building' | 'burst';
 export type CloudMood = 'rest' | 'calm' | 'building' | 'burst' | 'fade';
 
 /** Seconds of inactivity before auto-fade. `null` = off. */
-export type FadeDelay = 15 | 30 | 60 | null;
+export type FadeDelay = 3 | 15 | 30 | 60 | null;
 
 export type AnimationLevel = 'soft' | 'full';
 
@@ -27,4 +27,6 @@ export interface Settings {
   sound: boolean;
   animationLevel: AnimationLevel;
   locale: Locale;
+  /** Has the user finished (or skipped) the first-run guide? */
+  onboarded: boolean;
 }

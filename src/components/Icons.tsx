@@ -61,3 +61,35 @@ export function CloseIcon({ size = 20, color = '#77758F' }: IconProps) {
     </Svg>
   );
 }
+
+export function ClockIcon({ size = 15, color = W }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Circle cx={12} cy={13} r={8} stroke={color} strokeWidth={1.8} />
+      <Path d="M12 9v4l2.5 2M9.5 2.8h5" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+export function ChevronDownIcon({ size = 12, color = W }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M6 9l6 6 6-6" stroke={color} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+/** Keyboard with a down chevron — "hide keyboard". */
+export function KeyboardDownIcon({ size = 26, color = W }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M4.5 3.5h15a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 13V5a1.5 1.5 0 0 1 1.5-1.5Z"
+        stroke={color}
+        strokeWidth={1.6}
+      />
+      <Path d="M7 7h.01M10.5 7h.01M14 7h.01M17 7h.01M8 11h8" stroke={color} strokeWidth={1.8} strokeLinecap="round" />
+      <Path d="M9 18l3 3 3-3" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}

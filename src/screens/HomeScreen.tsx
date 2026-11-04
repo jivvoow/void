@@ -31,20 +31,23 @@ import { buildParticles, textEvaporation, type ParticleSpec } from '../animation
 import { CloudCharacter, CLOUD_ASPECT, CLOUD_MOUTH } from '../components/CloudCharacter';
 import { EmotionTextInput } from '../components/EmotionTextInput';
 import { FadeOverlay } from '../components/FadeOverlay';
-import { SettingsIcon } from '../components/Icons';
+import { HintBubble } from '../components/HintBubble';
+import { KeyboardDownIcon, SettingsIcon } from '../components/Icons';
 import { IntensityIndicator } from '../components/IntensityIndicator';
 import { ReleaseButton } from '../components/ReleaseButton';
 import { SkyBackground } from '../components/SkyBackground';
 import { StatusPill, type PillKind } from '../components/StatusPill';
-import { CLEAR_MESSAGE_MS, FADE_DURATION_MS } from '../constants/config';
+import { TimerPicker } from '../components/TimerPicker';
+import { CLEAR_MESSAGE_MS, FADE_DURATION_MS, RELEASE_HINT_MS } from '../constants/config';
 import { fonts, space } from '../constants/theme';
 import { useAutoFade } from '../hooks/useAutoFade';
 import { useStrings } from '../i18n';
 import { useSettings } from '../state/SettingsContext';
-import type { CloudMood, VentPhase } from '../types';
+import type { CloudMood, FadeDelay, VentPhase } from '../types';
 import { useHaptics } from '../utils/haptics';
 
 const GUTTER = 20;
+const HEADER_H = 56;
 const CARD_BOTTOM = 18;
 /** Cloud scale while venting: keyboard hidden / keyboard shown. */
 const CANVAS_SCALE_OPEN = 0.86;
@@ -64,7 +67,7 @@ interface Props {
  */
 export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
   const t = useStrings();
-  const { settings } = useSettings();
+  const { settings, update } = useSettings();
   const haptics = useHaptics();
   const insets = useSafeAreaInsets();
   const win = useWindowDimensions();
@@ -89,6 +92,10 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
   const inputRef = useRef<TextInputInstance>(null);
   const clearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fadeSeed = useRef(1);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [releaseHint, setReleaseHint] = useState(false);
+  const releaseHintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const releaseHintShown = useRef(false);
 
   const writing = focused || hasText || phase === 'fade';
 
@@ -245,6 +252,58 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
     [],
   );
 
+  /* ───────── keyboard / picker / hints ───────── */
+  const dismissKeyboard = useCallback(() => {
+    inputRef.current?.blur();
+    Keyboard.dismiss();
+    setPickerOpen(false);
+  }, []);
+
+  const togglePicker = useCallback(() => {
+    haptics.tick();
+    setPickerOpen((o) => !o);
+  }, [haptics]);
+
+  const selectDelay = useCallback(
+    (v: FadeDelay) => {
+      update({ fadeDelay: v });
+      setPickerOpen(false);
+      haptics.tick();
+      // Restart the countdown under the new delay rather than fading on the spot.
+      if (textRef.current) {
+        touch();
+        if (phaseRef.current === 'grace') setPhase('vent');
+      }
+    },
+    [update, haptics, touch, setPhase],
+  );
+
+  useEffect(() => {
+    if (phase === 'fade' || phase === 'grace') setPickerOpen(false);
+  }, [phase]);
+
+  const flashReleaseHint = useCallback(() => {
+    setReleaseHint(true);
+    if (releaseHintTimer.current) clearTimeout(releaseHintTimer.current);
+    releaseHintTimer.current = setTimeout(() => setReleaseHint(false), RELEASE_HINT_MS);
+  }, []);
+
+  // The first time the release button appears in a session, explain it once.
+  useEffect(() => {
+    if (hasText && !releaseHintShown.current) {
+      releaseHintShown.current = true;
+      flashReleaseHint();
+    }
+    if (!hasText) setReleaseHint(false);
+  }, [hasText, flashReleaseHint]);
+
+  useEffect(
+    () => () => {
+      if (releaseHintTimer.current) clearTimeout(releaseHintTimer.current);
+    },
+    [],
+  );
+
   /* ───────── privacy guards ───────── */
   useEffect(() => {
     if (Platform.OS === 'ios') ScreenCapture.enableAppSwitcherProtectionAsync(0.9).catch(() => {});
@@ -298,14 +357,19 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
   /* ───────── derived UI ───────── */
   const mood: CloudMood = phase === 'fade' ? 'fade' : phase === 'vent' || phase === 'grace' ? 'calm' : 'rest';
 
-  const pill = useMemo((): { kind: PillKind; label: string } | null => {
+  const delay = settings.fadeDelay;
+  const pill = useMemo((): { kind: PillKind; label: string } => {
     if (phase === 'fade') return { kind: 'fade', label: t.home.pillFade };
     if (phase === 'grace') return { kind: 'grace', label: t.home.pillGrace };
     if (phase === 'vent' && hasText) {
-      return settings.fadeDelay == null ? { kind: 'paused', label: t.home.pillPaused } : { kind: 'vent', label: t.home.pillVent };
+      return delay == null
+        ? { kind: 'paused', label: t.home.pillPaused }
+        : { kind: 'vent', label: t.home.pillVent(t.home.timerShort(delay)) };
     }
-    return null;
-  }, [phase, hasText, settings.fadeDelay, t]);
+    // Rest: the auto-fade time is always visible (and tappable) at the top.
+    return { kind: 'timer', label: t.home.timerChip(delay) };
+  }, [phase, hasText, delay, t]);
+  const pillOpensPicker = pill.kind === 'timer' || pill.kind === 'vent' || pill.kind === 'paused';
 
   return (
     <View style={styles.root}>
@@ -325,24 +389,52 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
             <SettingsIcon />
           </Pressable>
           <View style={styles.pillSlot} pointerEvents="box-none">
-            {pill && (
-              <StatusPill
-                key={pill.kind}
-                kind={pill.kind}
-                label={pill.label}
-                graceMs={graceMs}
-                onPress={pill.kind === 'grace' ? keep : undefined}
-                a11yLabel={pill.kind === 'grace' ? t.home.a11yGrace : undefined}
-              />
-            )}
+            <StatusPill
+              key={pill.kind}
+              kind={pill.kind}
+              label={pill.label}
+              graceMs={graceMs}
+              onPress={pill.kind === 'grace' ? keep : pillOpensPicker ? togglePicker : undefined}
+              a11yLabel={
+                pill.kind === 'grace' ? t.home.a11yGrace : pillOpensPicker ? t.home.a11yTimer(delay) : undefined
+              }
+              expandable={pillOpensPicker}
+              expanded={pickerOpen}
+            />
           </View>
-          <View style={styles.iconBtn}>
-            <IntensityIndicator />
-          </View>
+          {kbdVisible ? (
+            <Pressable
+              onPress={dismissKeyboard}
+              hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel={t.home.a11yKeyboardDown}
+              style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]}
+            >
+              <KeyboardDownIcon />
+            </Pressable>
+          ) : (
+            <View style={styles.iconBtn}>
+              <IntensityIndicator />
+            </View>
+          )}
         </View>
+
+        {pickerOpen && (
+          <View style={[styles.pickerLayer, { top: insets.top + HEADER_H }]}>
+            <TimerPicker
+              title={t.home.timerPickerTitle}
+              value={delay}
+              labelFor={t.home.timerShort}
+              onSelect={selectDelay}
+            />
+          </View>
+        )}
 
         <KeyboardAvoidingView style={styles.flex} behavior="padding">
           <View style={styles.flex} onLayout={onMainLayout}>
+            {/* Tapping anywhere outside the text hides the keyboard (and closes the picker). */}
+            <Pressable style={StyleSheet.absoluteFill} onPress={dismissKeyboard} accessible={false} />
+
             {/* Prompt / clear message */}
             <Animated.View style={[styles.promptWrap, promptStyle]} pointerEvents="none">
               {phase === 'clear' ? (
@@ -362,6 +454,9 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
                     {t.home.prompt}
                   </Text>
                   <BrushUnderline />
+                  <Text style={styles.restHint} maxFontSizeMultiplier={1.3}>
+                    {t.home.restHint(delay)}
+                  </Text>
                 </Animated.View>
               )}
             </Animated.View>
@@ -392,11 +487,13 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
               </Animated.View>
               {hasText && phase !== 'fade' && (
                 <Animated.View style={styles.release} entering={FadeIn.duration(300)} exiting={FadeOut.duration(200)}>
+                  {releaseHint && <HintBubble text={t.home.releaseBubble} />}
                   <ReleaseButton
                     label={t.home.release}
                     a11yLabel={t.home.a11yRelease}
                     onHoldStart={haptics.tick}
                     onRelease={startFade}
+                    onShortTap={flashReleaseHint}
                   />
                 </Animated.View>
               )}
@@ -426,7 +523,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   center: { alignItems: 'center' },
   header: {
-    height: 56,
+    height: HEADER_H,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -447,6 +544,14 @@ const styles = StyleSheet.create({
     textShadowRadius: 8,
   },
   underline: { marginTop: 6 },
+  restHint: {
+    marginTop: 14,
+    fontFamily: fonts.hand,
+    fontSize: 18,
+    color: 'rgba(255,255,255,0.82)',
+    textAlign: 'center',
+  },
+  pickerLayer: { position: 'absolute', left: 0, right: 0, zIndex: 10 },
   cloud: { position: 'absolute', top: 0, transformOrigin: 'center bottom' },
   shell: {
     position: 'absolute',
@@ -456,5 +561,5 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: 'hidden',
   },
-  release: { position: 'absolute', right: 8, bottom: 10 },
+  release: { position: 'absolute', right: 8, bottom: 10, alignItems: 'flex-end', gap: 6 },
 });

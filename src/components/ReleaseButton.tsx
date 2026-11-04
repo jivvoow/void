@@ -13,13 +13,15 @@ interface Props {
   disabled?: boolean;
   onHoldStart?: () => void;
   onRelease: () => void;
+  /** Let go before the hold completed — a chance to teach "hold, don't tap". */
+  onShortTap?: () => void;
 }
 
 /**
  * "훌훌 날리기" — must be HELD for RELEASE_HOLD_MS. A tap does nothing,
  * so a stray touch never erases anything. The fill shows hold progress.
  */
-function ReleaseButtonBase({ label, a11yLabel, disabled, onHoldStart, onRelease }: Props) {
+function ReleaseButtonBase({ label, a11yLabel, disabled, onHoldStart, onRelease, onShortTap }: Props) {
   const hold = useSharedValue(0);
 
   const onPressIn = () => {
@@ -31,7 +33,9 @@ function ReleaseButtonBase({ label, a11yLabel, disabled, onHoldStart, onRelease 
   };
   const onPressOut = () => {
     // Releasing early cancels the in-flight timing → its callback gets finished=false.
-    hold.value = withTiming(0, { duration: hold.value < 1 ? 220 : 500 });
+    const early = hold.value < 1;
+    hold.value = withTiming(0, { duration: early ? 220 : 500 });
+    if (early && !disabled) onShortTap?.();
   };
 
   const fillStyle = useAnimatedStyle(() => ({ transform: [{ scaleX: hold.value }] }));
