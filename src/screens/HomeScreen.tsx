@@ -44,11 +44,10 @@ import { RippleRings } from '../components/RippleRings';
 import { SkyBackground } from '../components/SkyBackground';
 import { StatusPill, type PillKind } from '../components/StatusPill';
 import { TimerPicker } from '../components/TimerPicker';
-import { WordBurst } from '../components/WordBurst';
+import { TrailingText, TRAIL_LIFE_MS, type TrailingTextHandle } from '../components/TrailingText';
 import {
   CLEAR_MESSAGE_MS,
   FADE_DURATION_MS,
-  INSTANT_IDLE_MS,
   RELEASE_HINT_MS,
   SPARK_THROTTLE_MS,
 } from '../constants/config';
@@ -128,9 +127,8 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
   const [releaseHint, setReleaseHint] = useState(false);
   const releaseHintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const releaseHintShown = useRef(false);
-  // "즉시" mode: finished words currently scattering (snapshots, dropped when each burst ends).
-  const [wordBursts, setWordBursts] = useState<{ id: number; text: string }[]>([]);
-  const burstId = useRef(0);
+  // "즉시" mode: the visible, self-fading copy of the text (glyphs melt oldest-first).
+  const trailRef = useRef<TrailingTextHandle>(null);
   /**
    * Bumped to empty the native input. The clear must run AFTER React has committed the
    * TextInput's latest event count — calling clear() inside onChangeText uses a stale count
@@ -265,39 +263,21 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
     }
   }, [recordInput, soft, kickLift, kickX, kick, kbdVisible, mainH, cloudH, win.width, cloudTarget, charge, pulse, haptics]);
 
-  /** "즉시" mode: the word just finished scatters on the spot and the cloud gulps it. */
-  const removeBurst = useCallback((id: number) => {
-    setWordBursts((list) => list.filter((b) => b.id !== id));
-  }, []);
-
-  const releaseWord = useCallback(
-    (word: string) => {
-      const id = ++burstId.current;
-      setWordBursts((list) => [...list.slice(-5), { id, text: word }]); // cap concurrent bursts
-      // Space / pause has committed the Hangul syllable, so clearing can't break composition.
-      setClearTick((n) => n + 1);
-      textRef.current = '';
-      contentH.current = 0;
-      scrollY.current = 0;
-      setHasText(false);
-      haptics.light();
-
-      // A few sparks from the word into the cloud; the cloud exhales a little with each word.
-      if (!soft) {
-        for (let i = 0; i < 3; i++) {
-          streamRef.current?.emit(
-            { x: GUTTER + 30 + Math.random() * Math.min(220, win.width - 120), y: 30 + Math.random() * 20 },
-            cloudTarget(),
-            intensityRef.current,
-          );
-        }
-      }
-      pulse.value = withDelay(SPARK_FLIGHT_MS, withSequence(withTiming(1, { duration: 80 }), withTiming(0, { duration: 320 })));
-      chargeTarget.current = chargeTarget.current * 0.7;
-      charge.value = withDelay(SPARK_FLIGHT_MS + 200, withTiming(chargeTarget.current, { duration: 700 }));
-    },
-    [haptics, soft, win.width, cloudTarget, pulse, charge],
-  );
+  /**
+   * "즉시" mode: once every glyph has melted (a short pause), quietly empty the native input
+   * so nothing invisible lingers in it. The keyboard stays up; the cloud breathes out a little.
+   */
+  const quietClear = useCallback(() => {
+    setClearTick((n) => n + 1); // deferred: clear() inside onChangeText would be ignored
+    textRef.current = '';
+    contentH.current = 0;
+    scrollY.current = 0;
+    trailRef.current?.reset();
+    setHasText(false);
+    pulse.value = withSequence(withTiming(1, { duration: 80 }), withTiming(0, { duration: 320 }));
+    chargeTarget.current = chargeTarget.current * 0.6;
+    charge.value = withTiming(chargeTarget.current, { duration: 700 });
+  }, [pulse, charge]);
 
   /* ───────── fade lifecycle ───────── */
   const finishFade = useCallback(() => {
@@ -358,7 +338,7 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
   }, [cloudH, fadeProgress, finishFade, haptics, setPhase, soft, win.width, resetIntensity, charge]);
 
   const delayMs =
-    settings.fadeDelay == null ? null : settings.fadeDelay === 'instant' ? INSTANT_IDLE_MS : settings.fadeDelay * 1000;
+    settings.fadeDelay == null ? null : settings.fadeDelay === 'instant' ? TRAIL_LIFE_MS + 250 : settings.fadeDelay * 1000;
   const { touch } = useAutoFade({
     delayMs,
     armed: hasText && (phase === 'vent' || phase === 'grace') && !settingsOpen,
@@ -366,14 +346,7 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
       setGraceMs(remaining);
       setPhase('grace');
     },
-    onExpire: () => {
-      if (instantRef.current) {
-        const word = textRef.current.trim();
-        if (word) releaseWord(word);
-      } else {
-        startFade();
-      }
-    },
+    onExpire: () => (instantRef.current ? quietClear() : startFade()),
     grace: !instant,
   });
 
@@ -396,20 +369,8 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
     (text: string) => {
       if (phaseRef.current === 'fade') return;
 
-      // "즉시": a space / enter finishes the word → it scatters right away.
-      if (instantRef.current && /\s/.test(text)) {
-        const word = text.trim();
-        if (phaseRef.current !== 'vent') setPhase('vent');
-        if (word) {
-          onVentInput();
-          releaseWord(word);
-        } else {
-          setClearTick((n) => n + 1);
-          textRef.current = '';
-          setHasText(false);
-        }
-        return;
-      }
+      // "즉시": every glyph starts its own fade clock — the oldest melts first.
+      if (instantRef.current) trailRef.current?.set(text);
 
       const grew = text.length >= textRef.current.length; // Hangul composition keeps length equal
       textRef.current = text;
@@ -426,7 +387,7 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
         resetIntensity();
       }
     },
-    [setPhase, touch, onVentInput, releaseWord, charge, resetIntensity],
+    [setPhase, touch, onVentInput, charge, resetIntensity],
   );
 
   useEffect(
@@ -452,6 +413,12 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
 
   const selectDelay = useCallback(
     (v: FadeDelay) => {
+      const wasInstant = settings.fadeDelay === 'instant';
+      if (textRef.current && wasInstant !== (v === 'instant')) {
+        // Leaving "즉시": already-melted glyphs must not reappear. Entering it: start melting now.
+        if (wasInstant) quietClear();
+        else trailRef.current?.set(textRef.current);
+      }
       update({ fadeDelay: v });
       setPickerOpen(false);
       haptics.tick();
@@ -461,7 +428,7 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
         if (phaseRef.current === 'grace') setPhase('vent');
       }
     },
-    [update, haptics, touch, setPhase],
+    [update, haptics, touch, setPhase, settings.fadeDelay, quietClear],
   );
 
   useEffect(() => {
@@ -484,7 +451,8 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
   }, [hasText, flashReleaseHint]);
 
   /* ───────── hold the cloud (or the chip) to release ───────── */
-  const canRelease = hasText && phase !== 'fade';
+  // In "즉시" mode the words leave by themselves (and melted glyphs must not come back in a fade).
+  const canRelease = hasText && phase !== 'fade' && !instant;
   const venting = phase === 'vent' && (hasText || (instant && focused));
   const { hold, onPressIn, onPressOut } = useHoldToRelease({
     disabled: !canRelease,
@@ -498,8 +466,8 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
 
   /** Tapping the sleeping cloud wakes it up and opens the keyboard. */
   const onCloudPress = useCallback(() => {
-    if (!hasText && phaseRef.current !== 'fade') inputRef.current?.focus();
-  }, [hasText]);
+    if ((!hasText || instant) && phaseRef.current !== 'fade') inputRef.current?.focus();
+  }, [hasText, instant]);
 
   /* ───────── privacy guards ───────── */
   useEffect(() => {
@@ -509,9 +477,9 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
     // Android: FLAG_SECURE while there are words on screen → blank in Recents, no screenshots.
     if (Platform.OS !== 'android') return;
     const key = 'void-writing';
-    const sensitive = hasText || wordBursts.length > 0 || phase === 'fade';
+    const sensitive = hasText || phase === 'fade';
     (sensitive ? ScreenCapture.preventScreenCaptureAsync(key) : ScreenCapture.allowScreenCaptureAsync(key)).catch(() => {});
-  }, [hasText, wordBursts.length, phase]);
+  }, [hasText, phase]);
 
   /* ───────── animated layout ───────── */
   const shellStyle = useAnimatedStyle(() => {
@@ -703,6 +671,7 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
                   key={inputKey}
                   ref={inputRef}
                   mode={writing ? 'canvas' : 'card'}
+                  ghost={instant}
                   placeholder={t.home.placeholder}
                   editable={phase !== 'fade'}
                   accessibilityLabel={t.home.a11yInput}
@@ -715,10 +684,10 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
                   onContentSizeChange={(h) => (contentH.current = h)}
                   onScrollY={(y) => (scrollY.current = y)}
                 />
+                {instant && writing && (
+                  <TrailingText ref={trailRef} textStyle={CANVAS_TEXT_STYLE} padding={CANVAS_PADDING} scrollY={scrollY} />
+                )}
               </Animated.View>
-              {wordBursts.map((b) => (
-                <WordBurst key={b.id} id={b.id} text={b.text} onDone={removeBurst} />
-              ))}
               {fadeText != null && (
                 <GlyphEvaporation
                   text={fadeText}
@@ -735,7 +704,7 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
             <EmotionStream ref={streamRef} />
 
             {/* "훌훌 날리기" chip above the cloud + one-time hint */}
-            {canRelease && !instant && (
+            {canRelease && (
               <Animated.View style={[styles.chipLayer, chipStyle]} pointerEvents="box-none">
                 <Animated.View entering={FadeIn.duration(300)} exiting={FadeOut.duration(200)} style={styles.chipCol}>
                   {releaseHint && (

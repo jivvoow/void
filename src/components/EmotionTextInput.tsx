@@ -19,6 +19,8 @@ interface Props {
   ref?: Ref<TextInputInstance>;
   /** `card` = resting glass card at the bottom, `canvas` = big handwriting while venting. */
   mode: 'card' | 'canvas';
+  /** Draw the native glyphs transparent (caret stays) — "즉시" mode paints them via TrailingText. */
+  ghost?: boolean;
   placeholder: string;
   editable: boolean;
   accessibilityLabel: string;
@@ -46,13 +48,13 @@ interface Props {
  * (keyboard apps may still keep their own data — see the privacy note in Settings).
  */
 function EmotionTextInputBase(props: Props) {
-  const { ref, mode, placeholder, editable, accessibilityLabel, onChangeText, onFocus, onBlur, onContentSizeChange, onScrollY } =
+  const { ref, mode, ghost, placeholder, editable, accessibilityLabel, onChangeText, onFocus, onBlur, onContentSizeChange, onScrollY } =
     props;
   const canvas = mode === 'canvas';
   return (
     <TextInput
       ref={ref}
-      style={[styles.base, canvas ? styles.canvas : styles.card]}
+      style={[styles.base, canvas ? styles.canvas : styles.card, canvas && ghost && styles.ghost]}
       multiline
       scrollEnabled
       textAlignVertical="top"
@@ -83,6 +85,7 @@ function EmotionTextInputBase(props: Props) {
 export const EmotionTextInput = memo(EmotionTextInputBase);
 
 const styles = StyleSheet.create({
+  ghost: { color: 'transparent', textShadowColor: 'transparent' },
   base: {
     flex: 1,
     margin: 0,

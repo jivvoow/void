@@ -10,8 +10,6 @@ export const DEFAULT_FADE_DELAY: FadeDelay = 30;
  */
 export const GRACE_WINDOW_MS = 5000;
 
-/** "즉시" mode: an unfinished word (no space yet) is released after this short pause. */
-export const INSTANT_IDLE_MS = 1100;
 
 /** Total length of the evaporation sequence (inhale → glyphs scatter → sparkles settle). */
 export const FADE_DURATION_MS = 3400;

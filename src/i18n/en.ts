@@ -41,7 +41,7 @@ export const en: Strings = {
     steps: [
       { title: 'Pour it out', body: 'The faster you type, the more\nthe cloud gulps it down and swells.' },
       { title: 'Hold the cloud', body: 'When you are done, press and hold.\nWhoosh — it all blows away.' },
-      { title: 'Or just stop', body: 'It fades on its own (pick with ⏱).\n“Now” blows away every word as you go.' },
+      { title: 'Or just stop', body: 'It fades on its own (pick with ⏱).\n“Now” melts each letter away as you type.' },
     ],
   },
   settings: {
