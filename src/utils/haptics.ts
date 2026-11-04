@@ -14,6 +14,7 @@ export function useHaptics() {
       tick: () => on && Haptics.selectionAsync().catch(swallow),
       soft: () => on && Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft).catch(swallow),
       light: () => on && Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(swallow),
+      medium: () => on && Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(swallow),
       done: () => on && Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(swallow),
     }),
     [on],

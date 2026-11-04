@@ -8,7 +8,7 @@ import { useStrings } from '../i18n';
 import type { CloudMood } from '../types';
 import { CloudCharacter } from './CloudCharacter';
 
-const MOODS: CloudMood[] = ['rest', 'calm', 'fade'];
+const MOODS: CloudMood[] = ['burst', 'calm', 'fade'];
 
 /** Three-card first-run guide. Shown once; can be replayed from Settings. */
 export function Onboarding({ onDone }: { onDone: () => void }) {

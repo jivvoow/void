@@ -27,6 +27,6 @@ export interface Settings {
   sound: boolean;
   animationLevel: AnimationLevel;
   locale: Locale;
-  /** Has the user finished (or skipped) the first-run guide? */
-  onboarded: boolean;
+  /** Version of the first-run guide the user has finished (or skipped). 0 = never. */
+  guideVersion: number;
 }

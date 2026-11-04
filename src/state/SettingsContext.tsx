@@ -16,7 +16,7 @@ const DEFAULT_SETTINGS: Settings = {
   sound: false,
   animationLevel: 'full',
   locale: 'ko',
-  onboarded: false,
+  guideVersion: 0,
 };
 
 /** Accept only known values so a corrupted / older blob can't break the app. */
@@ -29,7 +29,7 @@ function sanitize(raw: unknown): Settings {
   if (typeof r.sound === 'boolean') s.sound = r.sound;
   if (r.animationLevel === 'soft' || r.animationLevel === 'full') s.animationLevel = r.animationLevel;
   if (r.locale === 'ko' || r.locale === 'en') s.locale = r.locale;
-  if (typeof r.onboarded === 'boolean') s.onboarded = r.onboarded;
+  if (typeof r.guideVersion === 'number') s.guideVersion = r.guideVersion;
   return s;
 }
 

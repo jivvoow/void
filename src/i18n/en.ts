@@ -14,8 +14,9 @@ export const en: Strings = {
     timerPickerTitle: 'Fade after you stop typing',
     a11yTimer: (s: number | null) =>
       s == null ? 'Auto-fade off. Tap to change' : `Fades ${s} seconds after you stop. Tap to change`,
-    restHint: (s: number | null) => (s == null ? 'Hold “Let it go” when you are done' : `Stop typing and it fades in ${s}s`),
-    releaseBubble: 'Hold to let it go now',
+    restHint: 'The faster you pour it out, the more the cloud gulps',
+    releaseBubble: 'Hold the cloud to blow it all away',
+    a11yCloud: 'A cloud full of your feelings. Long-press to blow your words away.',
     a11yKeyboardDown: 'Hide keyboard',
     pillGrace: 'Floating away soon · tap to stop',
     pillFade: 'Slowly fading away…',
@@ -33,15 +34,9 @@ export const en: Strings = {
     next: 'Next',
     start: 'Start',
     steps: [
-      { title: 'Write freely', body: 'Say whatever you need.\nNothing is saved or kept.' },
-      {
-        title: 'It fades on its own',
-        body: 'Pick the time with ⏱ at the top.\n3s is almost instant; off waits for you.',
-      },
-      {
-        title: 'Hold to let it go',
-        body: 'Long-press “Let it go” to release now.\nTap empty space or ⌄ to hide the keyboard.',
-      },
+      { title: 'Pour it out', body: 'The faster you type, the more\nthe cloud gulps it down and swells.' },
+      { title: 'Hold the cloud', body: 'When you are done, press and hold.\nWhoosh — it all blows away.' },
+      { title: 'Or just stop', body: 'It fades on its own (pick 3–60s with ⏱).\nNothing is saved.' },
     ],
   },
   settings: {

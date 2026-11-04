@@ -9,6 +9,7 @@ import { AppState, Modal, Platform, StyleSheet, View, type AppStateStatus } from
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { Onboarding } from './src/components/Onboarding';
+import { GUIDE_VERSION } from './src/constants/config';
 import { PrivacyCover } from './src/components/PrivacyCover';
 import { useStrings } from './src/i18n';
 import { HomeScreen } from './src/screens/HomeScreen';
@@ -66,13 +67,13 @@ function Root() {
             onClose={() => setSettingsOpen(false)}
             onReplayGuide={() => {
               setSettingsOpen(false);
-              update({ onboarded: false });
+              update({ guideVersion: 0 });
             }}
           />
         </SafeAreaProvider>
       </Modal>
 
-      {!settings.onboarded && <Onboarding onDone={() => update({ onboarded: true })} />}
+      {settings.guideVersion < GUIDE_VERSION && <Onboarding onDone={() => update({ guideVersion: GUIDE_VERSION })} />}
 
       {/* Hide the words from the app switcher / recents snapshot. */}
       {appState !== 'active' && <PrivacyCover label={t.home.privacyCover} />}

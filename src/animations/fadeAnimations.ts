@@ -1,24 +1,14 @@
-import { Easing, interpolate, Extrapolation } from 'react-native-reanimated';
+import { Easing } from 'react-native-reanimated';
 
 /**
  * Evaporation choreography. One shared `progress` (0 → 1 over FADE_DURATION_MS)
  * drives the text, the cloud's breath and every particle, so all of it stays in sync
  * and runs on the UI thread.
  *
- * Phase 3 hook: swap `textEvaporation` for per-glyph styles (each glyph gets its own
- * delay from its index) while keeping the same `progress` driver.
+ * The words themselves dissolve glyph-by-glyph in components/GlyphEvaporation.tsx;
+ * this module builds the cloud's breath ribbon.
  */
 export const fadeEasing = Easing.bezier(0.33, 0, 0.2, 1);
-
-/** Text: holds a beat (cloud inhales), then lifts and dissolves. */
-export function textEvaporation(p: number) {
-  'worklet';
-  return {
-    opacity: interpolate(p, [0, 0.2, 0.75], [1, 0.95, 0], Extrapolation.CLAMP),
-    translateY: interpolate(p, [0.15, 1], [0, -22], Extrapolation.CLAMP),
-    scale: interpolate(p, [0.15, 1], [1, 0.985], Extrapolation.CLAMP),
-  };
-}
 
 export interface Point {
   x: number;

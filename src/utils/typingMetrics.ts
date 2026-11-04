@@ -16,7 +16,7 @@ export interface TypingTracker {
   reset: () => void;
 }
 
-export function createTypingTracker(windowMs = 2500, capacity = 64): TypingTracker {
+export function createTypingTracker(windowMs = 2000, capacity = 64): TypingTracker {
   const stamps: number[] = [];
   const prune = (t: number) => {
     while (stamps.length && t - stamps[0] > windowMs) stamps.shift();
@@ -37,11 +37,14 @@ export function createTypingTracker(windowMs = 2500, capacity = 64): TypingTrack
   };
 }
 
-/** Events/sec thresholds. Tuned for phone keyboards (Korean 2-beolsik ≈ 4–6 ev/s when relaxed). */
-export const INTENSITY_THRESHOLDS = { building: 6, burst: 9.5 } as const;
+/**
+ * Events/sec thresholds. Phone keyboards: relaxed Korean typing ≈ 3–4 ev/s,
+ * hurried ≈ 5–6, mashing / "아아아아아" ≈ 8+.
+ */
+export const INTENSITY_THRESHOLDS = { building: 4.5, burst: 7.5 } as const;
 
 /** Hysteresis so the cloud doesn't flicker between bands. */
-const HYSTERESIS = 1.2;
+const HYSTERESIS = 1;
 
 export function classifyIntensity(rate: number, previous: Intensity = 'calm'): Intensity {
   const { building, burst } = INTENSITY_THRESHOLDS;

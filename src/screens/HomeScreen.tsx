@@ -21,29 +21,37 @@ import Animated, {
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
+  withDelay,
+  withSequence,
+  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { buildParticles, textEvaporation, type ParticleSpec } from '../animations/fadeAnimations';
+import { buildParticles, type ParticleSpec } from '../animations/fadeAnimations';
 import { CloudCharacter, CLOUD_ASPECT, CLOUD_MOUTH } from '../components/CloudCharacter';
-import { EmotionTextInput } from '../components/EmotionTextInput';
+import { EmotionStream, SPARK_FLIGHT_MS, type EmotionStreamHandle } from '../components/EmotionStream';
+import { CANVAS_PADDING, CANVAS_TEXT_STYLE, EmotionTextInput } from '../components/EmotionTextInput';
 import { FadeOverlay } from '../components/FadeOverlay';
+import { GlyphEvaporation } from '../components/GlyphEvaporation';
 import { HintBubble } from '../components/HintBubble';
 import { KeyboardDownIcon, SettingsIcon } from '../components/Icons';
 import { IntensityIndicator } from '../components/IntensityIndicator';
 import { ReleaseButton } from '../components/ReleaseButton';
+import { RippleRings } from '../components/RippleRings';
 import { SkyBackground } from '../components/SkyBackground';
 import { StatusPill, type PillKind } from '../components/StatusPill';
 import { TimerPicker } from '../components/TimerPicker';
-import { CLEAR_MESSAGE_MS, FADE_DURATION_MS, RELEASE_HINT_MS } from '../constants/config';
+import { CLEAR_MESSAGE_MS, FADE_DURATION_MS, RELEASE_HINT_MS, SPARK_THROTTLE_MS } from '../constants/config';
 import { fonts, space } from '../constants/theme';
 import { useAutoFade } from '../hooks/useAutoFade';
+import { useHoldToRelease } from '../hooks/useHoldToRelease';
+import { useTypingIntensity } from '../hooks/useTypingIntensity';
 import { useStrings } from '../i18n';
 import { useSettings } from '../state/SettingsContext';
-import type { CloudMood, FadeDelay, VentPhase } from '../types';
+import type { CloudMood, FadeDelay, Intensity, VentPhase } from '../types';
 import { useHaptics } from '../utils/haptics';
 
 const GUTTER = 20;
@@ -52,6 +60,17 @@ const CARD_BOTTOM = 18;
 /** Cloud scale while venting: keyboard hidden / keyboard shown. */
 const CANVAS_SCALE_OPEN = 0.86;
 const CANVAS_SCALE_KBD = 0.62;
+const CHIP_GAP = 44;
+
+/** How much each spark of feeling fills the cloud, by intensity. ~60 calm keystrokes ≈ full. */
+const CHARGE_STEP: Record<Intensity, number> = { calm: 0.016, building: 0.026, burst: 0.04 };
+/** Text "kick" per keystroke: how far the words hop and jitter. */
+const KICK: Record<Intensity, { lift: number; jitter: number }> = {
+  calm: { lift: 0.8, jitter: 0 },
+  building: { lift: 2, jitter: 2.5 },
+  burst: { lift: 3.6, jitter: 6 },
+};
+const WARMTH: Record<Intensity, number> = { calm: 0.2, building: 0.5, burst: 0.85 };
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
@@ -64,6 +83,10 @@ interface Props {
 /**
  * The one screen. REST → VENT → (GRACE) → FADE → CLEAR all happen here as state,
  * never as navigation, so the cloud and the sky can flow between them.
+ *
+ * The loop the user should *feel*:
+ *   type ("와다다") → sparks fly from the words into the cloud → it gulps, swells, blushes, scowls
+ *   → hold the cloud (or stop typing) → it exhales "후우" → every glyph scatters into sparkles.
  */
 export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
   const t = useStrings();
@@ -82,8 +105,10 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
     setPhaseState(p);
   }, []);
 
-  // The user's words live ONLY here (and in the native input). Never in state, storage, or logs.
+  // The user's words live ONLY here (and in the native input). Never in storage or logs.
+  // `fadeText` holds a snapshot for the ~3s evaporation and is dropped right after.
   const textRef = useRef('');
+  const [fadeText, setFadeText] = useState<string | null>(null);
   const [hasText, setHasText] = useState(false);
   const [inputKey, setInputKey] = useState(0);
   const [focused, setFocused] = useState(false);
@@ -99,6 +124,11 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
 
   const writing = focused || hasText || phase === 'fade';
 
+  /* ───────── typing intensity (speed only, never content) ───────── */
+  const { intensity, recordInput, reset: resetIntensity } = useTypingIntensity();
+  const intensityRef = useRef<Intensity>('calm');
+  intensityRef.current = intensity;
+
   /* ───────── layout ───────── */
   const cloudW = clamp(win.width * 0.6, 190, 270);
   const cloudH = cloudW * CLOUD_ASPECT;
@@ -108,6 +138,7 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
   const fullMainH = useRef(win.height * 0.7); // main height with the keyboard hidden
   const [kbdVisible, setKbdVisible] = useState(false);
   const contentH = useRef(0);
+  const scrollY = useRef(0);
 
   const onMainLayout = (e: LayoutChangeEvent) => {
     const h = e.nativeEvent.layout.height;
@@ -132,6 +163,15 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
   const fadeProgress = useSharedValue(0);
   const warmth = useSharedValue(0);
   const hush = useSharedValue(0);
+  const charge = useSharedValue(0); // how full of feelings the cloud is
+  const chargeTarget = useRef(0);
+  const pulse = useSharedValue(0); // cloud "gulp"
+  const kick = useSharedValue(0); // words hop on each keystroke
+  const kickLift = useSharedValue(0);
+  const kickX = useSharedValue(0);
+  const streamRef = useRef<EmotionStreamHandle>(null);
+  const lastSpark = useRef(0);
+  const lastGulpHaptic = useRef(0);
 
   useEffect(() => {
     morph.value = withTiming(writing ? 1 : 0, { duration: soft ? 200 : 460, easing: Easing.bezier(0.3, 0.1, 0.2, 1) });
@@ -142,19 +182,72 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
   }, [kbdVisible, kbd]);
 
   useEffect(() => {
-    warmth.value = withTiming(phase === 'vent' ? 0.35 : phase === 'grace' ? 0.15 : 0, { duration: 900 });
+    const target = phase === 'vent' ? WARMTH[intensity] : phase === 'grace' ? 0.15 : 0;
+    warmth.value = withTiming(target, { duration: intensity === 'burst' ? 400 : 900 });
     hush.value = withTiming(phase === 'fade' ? 0.85 : 0, { duration: phase === 'fade' ? 700 : 1400 });
-  }, [phase, warmth, hush]);
+  }, [phase, intensity, warmth, hush]);
 
-  // Bring the fresh, empty input back to full opacity only after the old one has unmounted.
+  // Haptic punctuation when the feeling escalates (not on every key — battery & nerves).
+  const prevIntensity = useRef<Intensity>('calm');
+  useEffect(() => {
+    if (phaseRef.current === 'vent') {
+      if (intensity === 'building' && prevIntensity.current === 'calm') haptics.soft();
+      if (intensity === 'burst') haptics.medium();
+    }
+    prevIntensity.current = intensity;
+  }, [intensity, haptics]);
+
+  // Bring the fresh, empty input back only after the old one has unmounted.
   useEffect(() => {
     fadeProgress.value = 0;
   }, [inputKey, fadeProgress]);
+
+  /** Where the cloud's belly is right now (main-area coords). */
+  const cloudTarget = useCallback(() => {
+    const s = kbdVisible ? CANVAS_SCALE_KBD : CANVAS_SCALE_OPEN;
+    return { x: win.width / 2 + (Math.random() - 0.5) * 30, y: mainH.value + 6 - cloudH * s * 0.5 };
+  }, [kbdVisible, win.width, mainH, cloudH]);
+
+  /** One keystroke of venting: words hop, a spark flies, the cloud gulps and fills. */
+  const onVentInput = useCallback(() => {
+    recordInput();
+    const lv = intensityRef.current;
+
+    if (!soft) {
+      kickLift.value = KICK[lv].lift;
+      kickX.value = (Math.random() - 0.5) * KICK[lv].jitter;
+      kick.value = withSequence(withTiming(1, { duration: 45 }), withSpring(0, { damping: 9, stiffness: 320 }));
+    }
+
+    const now = Date.now();
+    if (now - lastSpark.current < SPARK_THROTTLE_MS) return;
+    lastSpark.current = now;
+
+    const s = kbdVisible ? CANVAS_SCALE_KBD : CANVAS_SCALE_OPEN;
+    const canvasH = Math.max(110, mainH.value - cloudH * s * 0.92 - 4);
+    const from = {
+      x: GUTTER + 24 + Math.random() * (win.width - GUTTER * 2 - 48),
+      y: clamp(contentH.current - scrollY.current - 24, 24, canvasH - 30),
+    };
+    if (!soft) streamRef.current?.emit(from, cloudTarget(), lv);
+
+    const landing = soft ? 0 : SPARK_FLIGHT_MS;
+    chargeTarget.current = Math.min(1, chargeTarget.current + CHARGE_STEP[lv]);
+    charge.value = withDelay(landing, withTiming(chargeTarget.current, { duration: 260 }));
+    pulse.value = withDelay(landing, withSequence(withTiming(1, { duration: 70 }), withTiming(0, { duration: 280 })));
+
+    if (lv === 'burst' && now - lastGulpHaptic.current > 220) {
+      lastGulpHaptic.current = now;
+      setTimeout(haptics.light, landing);
+    }
+  }, [recordInput, soft, kickLift, kickX, kick, kbdVisible, mainH, cloudH, win.width, cloudTarget, charge, pulse, haptics]);
 
   /* ───────── fade lifecycle ───────── */
   const finishFade = useCallback(() => {
     textRef.current = '';
     contentH.current = 0;
+    scrollY.current = 0;
+    setFadeText(null); // drop the snapshot
     setHasText(false);
     setParticles([]);
     setInputKey((k) => k + 1); // remount → native buffer released
@@ -172,35 +265,40 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
       setPhase('rest');
       return;
     }
+    setFadeText(textRef.current);
     setPhase('fade');
     inputRef.current?.blur();
     Keyboard.dismiss();
     haptics.soft();
+    resetIntensity();
 
-    // Aim particles at the layout we're heading to (keyboard down).
+    // The cloud's "후우": a ribbon of sparkles from its mouth, aimed at the keyboard-down layout.
     const H = fullMainH.current;
     const sCloud = CANVAS_SCALE_OPEN;
     const canvasH = Math.max(140, H - cloudH * sCloud * 0.92 - 4);
-    const textH = clamp(contentH.current || 80, 60, canvasH - 40);
-    const mouth = {
-      x: win.width / 2, // the main area spans the full window width
-      y: H + 6 - cloudH * sCloud * (1 - CLOUD_MOUTH.y),
-    };
+    const textH = clamp((contentH.current || 80) - scrollY.current, 60, canvasH - 40);
+    const mouth = { x: win.width / 2, y: H + 6 - cloudH * sCloud * (1 - CLOUD_MOUTH.y) };
     fadeSeed.current = (fadeSeed.current * 9301 + 49297) % 233280;
     setParticles(
-      buildParticles(
-        fadeSeed.current,
-        { x: GUTTER + 12, y: 8, width: win.width - GUTTER * 2 - 24, height: textH },
-        mouth,
-        soft ? { dust: 8, breath: 0 } : { dust: 22, breath: 16 },
-      ),
+      soft
+        ? []
+        : buildParticles(
+            fadeSeed.current,
+            { x: GUTTER + 12, y: 8, width: win.width - GUTTER * 2 - 24, height: textH },
+            mouth,
+            { dust: 0, breath: 18 },
+          ),
     );
 
+    // Everything it swallowed goes out with the breath.
+    chargeTarget.current = 0;
+    charge.value = withDelay(FADE_DURATION_MS * 0.18, withTiming(0, { duration: FADE_DURATION_MS * 0.55 }));
+
     fadeProgress.value = 0;
-    fadeProgress.value = withTiming(1, { duration: FADE_DURATION_MS, easing: Easing.linear }, (finished) => {
+    fadeProgress.value = withTiming(1, { duration: soft ? 1400 : FADE_DURATION_MS, easing: Easing.linear }, (finished) => {
       if (finished) scheduleOnRN(finishFade);
     });
-  }, [cloudH, fadeProgress, finishFade, haptics, setPhase, soft, win.width]);
+  }, [cloudH, fadeProgress, finishFade, haptics, setPhase, soft, win.width, resetIntensity, charge]);
 
   const delayMs = settings.fadeDelay == null ? null : settings.fadeDelay * 1000;
   const { touch } = useAutoFade({
@@ -231,22 +329,28 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
   const onChangeText = useCallback(
     (text: string) => {
       if (phaseRef.current === 'fade') return;
+      const grew = text.length >= textRef.current.length; // Hangul composition keeps length equal
       textRef.current = text;
       const nonEmpty = text.length > 0;
       setHasText(nonEmpty);
       if (nonEmpty) {
         if (phaseRef.current !== 'vent') setPhase('vent');
         touch();
-      } else if (phaseRef.current !== 'rest') {
-        setPhase('rest');
+        if (grew) onVentInput();
+      } else {
+        if (phaseRef.current !== 'rest') setPhase('rest');
+        chargeTarget.current = 0;
+        charge.value = withTiming(0, { duration: 600 });
+        resetIntensity();
       }
     },
-    [setPhase, touch],
+    [setPhase, touch, onVentInput, charge, resetIntensity],
   );
 
   useEffect(
     () => () => {
       if (clearTimer.current) clearTimeout(clearTimer.current);
+      if (releaseHintTimer.current) clearTimeout(releaseHintTimer.current);
       textRef.current = '';
     },
     [],
@@ -288,7 +392,7 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
     releaseHintTimer.current = setTimeout(() => setReleaseHint(false), RELEASE_HINT_MS);
   }, []);
 
-  // The first time the release button appears in a session, explain it once.
+  // The first time there is something to release in a session, explain the cloud once.
   useEffect(() => {
     if (hasText && !releaseHintShown.current) {
       releaseHintShown.current = true;
@@ -297,12 +401,22 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
     if (!hasText) setReleaseHint(false);
   }, [hasText, flashReleaseHint]);
 
-  useEffect(
-    () => () => {
-      if (releaseHintTimer.current) clearTimeout(releaseHintTimer.current);
+  /* ───────── hold the cloud (or the chip) to release ───────── */
+  const canRelease = hasText && phase !== 'fade';
+  const { hold, onPressIn, onPressOut } = useHoldToRelease({
+    disabled: !canRelease,
+    onHoldStart: haptics.tick,
+    onRelease: startFade,
+    onShortTap: () => {
+      flashReleaseHint();
+      pulse.value = withSequence(withTiming(1, { duration: 80 }), withTiming(0, { duration: 300 }));
     },
-    [],
-  );
+  });
+
+  /** Tapping the sleeping cloud wakes it up and opens the keyboard. */
+  const onCloudPress = useCallback(() => {
+    if (!hasText && phaseRef.current !== 'fade') inputRef.current?.focus();
+  }, [hasText]);
 
   /* ───────── privacy guards ───────── */
   useEffect(() => {
@@ -344,18 +458,38 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
     };
   });
 
+  // "훌훌 날리기" chip rides just above the cloud's head while venting.
+  const chipStyle = useAnimatedStyle(() => {
+    const H = mainH.value;
+    const s = interpolate(kbd.value, [0, 1], [CANVAS_SCALE_OPEN, CANVAS_SCALE_KBD]);
+    const cloudTop = H + 6 - cloudH * s * (1 + charge.value * 0.15);
+    return { transform: [{ translateY: cloudTop - CHIP_GAP }] };
+  });
+
   const promptStyle = useAnimatedStyle(() => ({
     opacity: 1 - morph.value,
     transform: [{ translateY: -16 * morph.value }],
   }));
 
-  const textStyle = useAnimatedStyle(() => {
-    const e = textEvaporation(fadeProgress.value);
-    return { opacity: e.opacity, transform: [{ translateY: e.translateY }, { scale: e.scale }] };
-  });
+  const kickStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: kickX.value * kick.value },
+      { translateY: -kickLift.value * kick.value },
+      { scale: 1 + kick.value * kickLift.value * 0.004 },
+    ],
+  }));
 
   /* ───────── derived UI ───────── */
-  const mood: CloudMood = phase === 'fade' ? 'fade' : phase === 'vent' || phase === 'grace' ? 'calm' : 'rest';
+  const mood: CloudMood =
+    phase === 'fade'
+      ? 'fade'
+      : phase === 'grace'
+        ? 'calm'
+        : phase === 'vent' && hasText
+          ? intensity
+          : focused
+            ? 'calm' // awake and listening
+            : 'rest';
 
   const delay = settings.fadeDelay;
   const pill = useMemo((): { kind: PillKind; label: string } => {
@@ -370,6 +504,8 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
     return { kind: 'timer', label: t.home.timerChip(delay) };
   }, [phase, hasText, delay, t]);
   const pillOpensPicker = pill.kind === 'timer' || pill.kind === 'vent' || pill.kind === 'paused';
+
+  const fadeSeedForGlyphs = fadeSeed.current;
 
   return (
     <View style={styles.root}>
@@ -395,9 +531,7 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
               label={pill.label}
               graceMs={graceMs}
               onPress={pill.kind === 'grace' ? keep : pillOpensPicker ? togglePicker : undefined}
-              a11yLabel={
-                pill.kind === 'grace' ? t.home.a11yGrace : pillOpensPicker ? t.home.a11yTimer(delay) : undefined
-              }
+              a11yLabel={pill.kind === 'grace' ? t.home.a11yGrace : pillOpensPicker ? t.home.a11yTimer(delay) : undefined}
               expandable={pillOpensPicker}
               expanded={pickerOpen}
             />
@@ -414,19 +548,14 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
             </Pressable>
           ) : (
             <View style={styles.iconBtn}>
-              <IntensityIndicator />
+              <IntensityIndicator intensity={phase === 'vent' ? intensity : 'calm'} />
             </View>
           )}
         </View>
 
         {pickerOpen && (
           <View style={[styles.pickerLayer, { top: insets.top + HEADER_H }]}>
-            <TimerPicker
-              title={t.home.timerPickerTitle}
-              value={delay}
-              labelFor={t.home.timerShort}
-              onSelect={selectDelay}
-            />
+            <TimerPicker title={t.home.timerPickerTitle} value={delay} labelFor={t.home.timerShort} onSelect={selectDelay} />
           </View>
         )}
 
@@ -455,23 +584,38 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
                   </Text>
                   <BrushUnderline />
                   <Text style={styles.restHint} maxFontSizeMultiplier={1.3}>
-                    {t.home.restHint(delay)}
+                    {t.home.restHint}
                   </Text>
                 </Animated.View>
               )}
             </Animated.View>
 
-            {/* Cloud */}
+            {/* Cloud — swallows feelings while you type, hold it to blow them away */}
             <Animated.View
               style={[styles.cloud, { width: cloudW, height: cloudH, left: (win.width - cloudW) / 2 }, cloudStyle]}
-              pointerEvents="none"
+              pointerEvents="box-none"
             >
-              <CloudCharacter mood={mood} width={cloudW} soft={soft} />
+              <View style={[styles.ripples, { left: -cloudW * 0.1, top: cloudH * 0.5 - cloudW * 0.42 }]} pointerEvents="none">
+                <RippleRings intensity={intensity} active={phase === 'vent' && hasText && !soft} size={cloudW * 1.2} />
+              </View>
+              <Pressable
+                onPress={onCloudPress}
+                onPressIn={onPressIn}
+                onPressOut={onPressOut}
+                accessibilityRole="button"
+                accessibilityLabel={t.home.a11yCloud}
+                accessibilityActions={canRelease ? [{ name: 'activate' }] : undefined}
+                onAccessibilityAction={(e) => {
+                  if (e.nativeEvent.actionName === 'activate' && canRelease) startFade();
+                }}
+              >
+                <CloudCharacter mood={mood} width={cloudW} soft={soft} charge={charge} pulse={pulse} hold={hold} />
+              </Pressable>
             </Animated.View>
 
             {/* Writing surface: glass card at rest, open canvas while venting */}
             <Animated.View style={[styles.shell, shellStyle]}>
-              <Animated.View style={[styles.flex, textStyle]}>
+              <Animated.View style={[styles.flex, kickStyle, phase === 'fade' && styles.hidden]}>
                 <EmotionTextInput
                   key={inputKey}
                   ref={inputRef}
@@ -483,21 +627,44 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
                   onFocus={() => setFocused(true)}
                   onBlur={() => setFocused(false)}
                   onContentSizeChange={(h) => (contentH.current = h)}
+                  onScrollY={(y) => (scrollY.current = y)}
                 />
               </Animated.View>
-              {hasText && phase !== 'fade' && (
-                <Animated.View style={styles.release} entering={FadeIn.duration(300)} exiting={FadeOut.duration(200)}>
-                  {releaseHint && <HintBubble text={t.home.releaseBubble} />}
+              {fadeText != null && (
+                <GlyphEvaporation
+                  text={fadeText}
+                  progress={fadeProgress}
+                  textStyle={CANVAS_TEXT_STYLE}
+                  padding={CANVAS_PADDING}
+                  scrollY={scrollY.current}
+                  seed={fadeSeedForGlyphs}
+                />
+              )}
+            </Animated.View>
+
+            {/* Sparks of feeling flying from the words into the cloud */}
+            <EmotionStream ref={streamRef} />
+
+            {/* "훌훌 날리기" chip above the cloud + one-time hint */}
+            {canRelease && (
+              <Animated.View style={[styles.chipLayer, chipStyle]} pointerEvents="box-none">
+                <Animated.View entering={FadeIn.duration(300)} exiting={FadeOut.duration(200)} style={styles.chipCol}>
+                  {releaseHint && (
+                    <View style={styles.bubble} pointerEvents="none">
+                      <HintBubble text={t.home.releaseBubble} />
+                    </View>
+                  )}
                   <ReleaseButton
                     label={t.home.release}
                     a11yLabel={t.home.a11yRelease}
-                    onHoldStart={haptics.tick}
-                    onRelease={startFade}
-                    onShortTap={flashReleaseHint}
+                    hold={hold}
+                    onPressIn={onPressIn}
+                    onPressOut={onPressOut}
+                    onAccessibleRelease={startFade}
                   />
                 </Animated.View>
-              )}
-            </Animated.View>
+              </Animated.View>
+            )}
 
             <FadeOverlay progress={fadeProgress} particles={particles} />
           </View>
@@ -521,6 +688,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#9C93AE' },
   safe: { flex: 1 },
   flex: { flex: 1 },
+  hidden: { opacity: 0 },
   center: { alignItems: 'center' },
   header: {
     height: HEADER_H,
@@ -553,6 +721,7 @@ const styles = StyleSheet.create({
   },
   pickerLayer: { position: 'absolute', left: 0, right: 0, zIndex: 10 },
   cloud: { position: 'absolute', top: 0, transformOrigin: 'center bottom' },
+  ripples: { position: 'absolute' },
   shell: {
     position: 'absolute',
     left: GUTTER,
@@ -561,5 +730,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: 'hidden',
   },
-  release: { position: 'absolute', right: 8, bottom: 10, alignItems: 'flex-end', gap: 6 },
+  chipLayer: { position: 'absolute', top: 0, left: 0, right: 0, alignItems: 'center' },
+  chipCol: { alignItems: 'center' },
+  bubble: { position: 'absolute', bottom: 46, width: 280, alignItems: 'center' },
 });

@@ -8,6 +8,7 @@ import Animated, {
   withRepeat,
   withSequence,
   withTiming,
+  type SharedValue,
 } from 'react-native-reanimated';
 import Svg, { Defs, Ellipse, G, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 
@@ -34,14 +35,25 @@ interface Props {
   width: number;
   /** Soft = minimal motion (Reduce Motion or user preference). */
   soft?: boolean;
+  /** 0 → 1: how much feeling the cloud has swallowed. Swells and blushes the cloud. */
+  charge?: SharedValue<number>;
+  /** 0 → 1 → 0 "gulp" each time a spark of feeling lands. */
+  pulse?: SharedValue<number>;
+  /** 0 → 1 while the user is holding the cloud to release (it inhales, squishing down). */
+  hold?: SharedValue<number>;
 }
 
 /**
  * The one and only cloud. Mood changes colour, size and face — never the silhouette —
  * so every state reads as the same character.
  */
-function CloudCharacterBase({ mood, width, soft = false }: Props) {
+function CloudCharacterBase({ mood, width, soft = false, charge: chargeIn, pulse: pulseIn, hold: holdIn }: Props) {
   const height = width * CLOUD_ASPECT;
+  const zero = useSharedValue(0);
+  const charge = chargeIn ?? zero;
+  const pulse = pulseIn ?? zero;
+  const hold = holdIn ?? zero;
+  const rays = useSharedValue(0);
 
   const bob = useSharedValue(0);
   const breath = useSharedValue(1);
@@ -94,16 +106,42 @@ function CloudCharacterBase({ mood, width, soft = false }: Props) {
     } else {
       zz.value = withTiming(mood === 'rest' ? 0.7 : 0, { duration: 300 });
     }
-  }, [mood, soft, moodScale, pink, glow, sx, sy, zz]);
 
-  const bodyStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateY: bob.value },
-      { scaleX: moodScale.value * (1 + (breath.value - 1) * 0.6) * sx.value },
-      { scaleY: moodScale.value * breath.value * sy.value },
-    ],
+    // Burst: little anger rays flicker around the head.
+    if (mood === 'burst') {
+      rays.value = withRepeat(
+        withSequence(withTiming(1, { duration: 140 }), withTiming(0.55, { duration: 220 })),
+        -1,
+        true,
+      );
+    } else {
+      rays.value = withTiming(0, { duration: 250 });
+    }
+  }, [mood, soft, moodScale, pink, glow, sx, sy, zz, rays]);
+
+  const bodyStyle = useAnimatedStyle(() => {
+    const swell = 1 + charge.value * 0.24; // full of feelings → noticeably plumper
+    const gulpX = 1 + pulse.value * 0.06;
+    const gulpY = 1 - pulse.value * 0.04;
+    const squishX = 1 + hold.value * 0.1; // holding: the cloud draws a deep breath in
+    const squishY = 1 - hold.value * 0.12;
+    return {
+      transform: [
+        { translateY: bob.value },
+        { scaleX: moodScale.value * swell * gulpX * squishX * (1 + (breath.value - 1) * 0.6) * sx.value },
+        { scaleY: moodScale.value * swell * gulpY * squishY * breath.value * sy.value },
+      ],
+    };
+  });
+  const pinkStyle = useAnimatedStyle(() => ({ opacity: Math.max(pink.value, charge.value * 0.8) }));
+  const pinkGlowStyle = useAnimatedStyle(() => ({
+    opacity: Math.max(pink.value, charge.value) * 0.9,
+    transform: [{ scale: 0.95 + charge.value * 0.25 + pulse.value * 0.05 }],
   }));
-  const pinkStyle = useAnimatedStyle(() => ({ opacity: pink.value }));
+  const raysStyle = useAnimatedStyle(() => ({
+    opacity: rays.value,
+    transform: [{ scale: 0.92 + rays.value * 0.12 + charge.value * 0.15 }],
+  }));
   const glowStyle = useAnimatedStyle(() => ({
     opacity: glow.value,
     transform: [{ scale: 0.9 + glow.value * 0.2 }],
@@ -119,6 +157,12 @@ function CloudCharacterBase({ mood, width, soft = false }: Props) {
     <View style={{ width, height }} pointerEvents="none" accessible={false}>
       <Animated.View style={[StyleSheet.absoluteFill, styles.glow, glowStyle]}>
         <Glow width={width} height={height} />
+      </Animated.View>
+      <Animated.View style={[StyleSheet.absoluteFill, styles.glow, pinkGlowStyle]}>
+        <Glow width={width} height={height} color={C.pinkEdge} />
+      </Animated.View>
+      <Animated.View style={[StyleSheet.absoluteFill, styles.glow, raysStyle]}>
+        <BurstRays width={width} height={height} />
       </Animated.View>
 
       <Animated.View style={[StyleSheet.absoluteFill, shadowStyle]}>
@@ -212,17 +256,46 @@ const GroundShadow = memo(function GroundShadow({ width, height }: Size) {
   );
 });
 
-const Glow = memo(function Glow({ width, height }: Size) {
+const Glow = memo(function Glow({ width, height, color = C.glow }: Size & { color?: string }) {
+  const id = `halo-${color.replace('#', '')}`;
   return (
     <Svg width={width * 1.6} height={height * 1.6} viewBox="0 0 100 100">
       <Defs>
-        <RadialGradient id="halo" cx={0.5} cy={0.55} r={0.5}>
-          <Stop offset="0" stopColor={C.glow} stopOpacity={0.75} />
-          <Stop offset="0.55" stopColor={C.glow} stopOpacity={0.22} />
-          <Stop offset="1" stopColor={C.glow} stopOpacity={0} />
+        <RadialGradient id={id} cx={0.5} cy={0.55} r={0.5}>
+          <Stop offset="0" stopColor={color} stopOpacity={0.75} />
+          <Stop offset="0.55" stopColor={color} stopOpacity={0.22} />
+          <Stop offset="1" stopColor={color} stopOpacity={0} />
         </RadialGradient>
       </Defs>
-      <Ellipse cx={50} cy={55} rx={50} ry={42} fill="url(#halo)" />
+      <Ellipse cx={50} cy={55} rx={50} ry={42} fill={`url(#${id})`} />
+    </Svg>
+  );
+});
+
+/** Short coral strokes radiating from the head — only visible in BURST. */
+const BurstRays = memo(function BurstRays({ width, height }: Size) {
+  // Drawn on a 1.6× canvas centred on the cloud, angles fanned over the top half.
+  const angles = [-160, -135, -112, -90, -68, -45, -20];
+  return (
+    <Svg width={width * 1.6} height={height * 1.6} viewBox="0 0 200 200">
+      <G stroke="#FFD9D2" strokeWidth={3} strokeLinecap="round">
+        {angles.map((a) => {
+          const r = (a * Math.PI) / 180;
+          const cx = 100;
+          const cy = 118;
+          const r1 = 70;
+          const r2 = a === -90 ? 88 : 82;
+          return (
+            <Path
+              key={a}
+              d={`M${cx + Math.cos(r) * r1 * 1.25},${cy + Math.sin(r) * r1} L${cx + Math.cos(r) * r2 * 1.25},${cy + Math.sin(r) * r2}`}
+            />
+          );
+        })}
+      </G>
+      <G stroke="#F2A3A0" strokeWidth={1.6} strokeLinecap="round" opacity={0.9}>
+        <Path d="M160,40 l6,-6 M166,46 l8,-2 M158,48 l-1,7" />
+      </G>
     </Svg>
   );
 });

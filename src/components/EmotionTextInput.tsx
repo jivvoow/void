@@ -1,7 +1,19 @@
 import { memo, type Ref } from 'react';
-import { Platform, StyleSheet, TextInput, type TextInputInstance } from 'react-native';
+import { Platform, StyleSheet, TextInput, type TextInputInstance, type TextStyle } from 'react-native';
 
 import { fonts, palette } from '../constants/theme';
+
+/** Shared with GlyphEvaporation so the dissolving overlay lands exactly on the typed words. */
+export const CANVAS_TEXT_STYLE: TextStyle = {
+  fontFamily: fonts.handBold,
+  fontSize: 30,
+  lineHeight: Platform.select({ ios: 40, default: 42 }),
+  color: '#FFFFFF',
+  textShadowColor: 'rgba(110, 90, 140, 0.25)',
+  textShadowOffset: { width: 0, height: 1 },
+  textShadowRadius: 8,
+};
+export const CANVAS_PADDING = { top: 8, horizontal: 18 };
 
 interface Props {
   ref?: Ref<TextInputInstance>;
@@ -13,8 +25,10 @@ interface Props {
   onChangeText: (text: string) => void;
   onFocus: () => void;
   onBlur: () => void;
-  /** Content height, used to aim the fade particles at where the words actually are. */
+  /** Content height — where the words currently end (sparks launch from there). */
   onContentSizeChange?: (height: number) => void;
+  /** Scroll offset of long notes, so the evaporation overlay can line up. */
+  onScrollY?: (y: number) => void;
 }
 
 /**
@@ -25,13 +39,15 @@ interface Props {
  *    breaks Hangul composition on iOS (duplicated jamo / jumping caret). We only read text out.
  *  - Clearing is done by remounting with a new `key` from the parent, which also lets the native
  *    view release its text buffer.
- *  - No per-glyph effects are applied to the live input; visual effects live in separate layers,
- *    so the caret and keyboard are never disturbed.
+ *  - Typing effects (kick, shake) transform the WRAPPER view only; the evaporation is a separate
+ *    overlay. Nothing ever rewrites the native text, so caret and composition are never disturbed.
  *
  * Privacy: autocorrect/suggestions/autofill are turned off to reduce what keyboards learn
  * (keyboard apps may still keep their own data — see the privacy note in Settings).
  */
-function EmotionTextInputBase({ ref, mode, placeholder, editable, accessibilityLabel, onChangeText, onFocus, onBlur, onContentSizeChange }: Props) {
+function EmotionTextInputBase(props: Props) {
+  const { ref, mode, placeholder, editable, accessibilityLabel, onChangeText, onFocus, onBlur, onContentSizeChange, onScrollY } =
+    props;
   const canvas = mode === 'canvas';
   return (
     <TextInput
@@ -49,6 +65,7 @@ function EmotionTextInputBase({ ref, mode, placeholder, editable, accessibilityL
       onFocus={onFocus}
       onBlur={onBlur}
       onContentSizeChange={(e) => onContentSizeChange?.(e.nativeEvent.contentSize.height)}
+      onScroll={(e) => onScrollY?.(e.nativeEvent.contentOffset.y)}
       autoCorrect={false}
       spellCheck={false}
       autoComplete="off"
@@ -69,7 +86,7 @@ const styles = StyleSheet.create({
   base: {
     flex: 1,
     margin: 0,
-    paddingHorizontal: 18,
+    paddingHorizontal: CANVAS_PADDING.horizontal,
     includeFontPadding: false,
   },
   card: {
@@ -81,15 +98,9 @@ const styles = StyleSheet.create({
     paddingBottom: 18,
   },
   canvas: {
-    fontFamily: fonts.handBold,
-    fontSize: 30,
-    lineHeight: Platform.select({ ios: 40, default: 42 }),
-    color: '#FFFFFF',
-    paddingTop: 8,
-    // Leave room for the release button floating in the bottom-right corner.
-    paddingBottom: 60,
-    textShadowColor: 'rgba(110, 90, 140, 0.25)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 8,
+    ...CANVAS_TEXT_STYLE,
+    paddingTop: CANVAS_PADDING.top,
+    // Leave room above the cloud for the release chip.
+    paddingBottom: 56,
   },
 });

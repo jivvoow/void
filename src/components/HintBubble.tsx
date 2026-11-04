@@ -24,7 +24,7 @@ export function HintBubble({ text }: { text: string }) {
 }
 
 const styles = StyleSheet.create({
-  wrap: { alignItems: 'flex-end' },
+  wrap: { alignItems: 'center' },
   bubble: {
     backgroundColor: 'rgba(255,255,255,0.92)',
     borderRadius: 14,
@@ -40,7 +40,6 @@ const styles = StyleSheet.create({
   tail: {
     width: 10,
     height: 10,
-    marginRight: 28,
     marginTop: -5,
     backgroundColor: 'rgba(255,255,255,0.92)',
     transform: [{ rotate: '45deg' }],
