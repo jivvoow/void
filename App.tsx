@@ -1,6 +1,4 @@
-// Import only the weights we use (the package index would bundle every weight).
-import { Gaegu_400Regular } from '@expo-google-fonts/gaegu/400Regular';
-import { Gaegu_700Bold } from '@expo-google-fonts/gaegu/700Bold';
+import { GamjaFlower_400Regular } from '@expo-google-fonts/gamja-flower/400Regular';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -20,7 +18,7 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function App() {
   // Fonts are bundled with the app — no network needed at runtime.
-  const [loaded, error] = useFonts({ Gaegu_400Regular, Gaegu_700Bold });
+  const [loaded, error] = useFonts({ GamjaFlower_400Regular });
 
   if (!loaded && !error) return null;
 

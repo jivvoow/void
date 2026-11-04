@@ -48,9 +48,13 @@ export const glass = {
 } as const;
 
 export const fonts = {
-  /** Handwriting display face – prompts, the venting text, pills. */
-  hand: 'Gaegu_400Regular',
-  handBold: 'Gaegu_700Bold',
+  /**
+   * Handwriting display face – prompts, the venting text, pills.
+   * Must cover ALL 11,172 Hangul syllables: while composing, the IME shows rare syllables
+   * (e.g. "앜" on the way to "아ㅋㅋ"), and a font missing them flickers to a fallback face.
+   */
+  hand: 'GamjaFlower_400Regular',
+  handBold: 'GamjaFlower_400Regular',
   /**
    * Small UI copy (settings, captions) uses the platform Korean face
    * (Apple SD Gothic Neo / Noto Sans KR): most legible at small sizes and adds 0 MB.

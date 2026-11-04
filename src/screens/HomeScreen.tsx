@@ -131,6 +131,15 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
   // "즉시" mode: finished words currently scattering (snapshots, dropped when each burst ends).
   const [wordBursts, setWordBursts] = useState<{ id: number; text: string }[]>([]);
   const burstId = useRef(0);
+  /**
+   * Bumped to empty the native input. The clear must run AFTER React has committed the
+   * TextInput's latest event count — calling clear() inside onChangeText uses a stale count
+   * and the native side silently ignores it (the word would stay on screen).
+   */
+  const [clearTick, setClearTick] = useState(0);
+  useEffect(() => {
+    if (clearTick > 0) inputRef.current?.clear();
+  }, [clearTick]);
 
   const instant = settings.fadeDelay === 'instant';
   const instantRef = useRef(instant);
@@ -265,8 +274,8 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
     (word: string) => {
       const id = ++burstId.current;
       setWordBursts((list) => [...list.slice(-5), { id, text: word }]); // cap concurrent bursts
-      // Space has committed the Hangul syllable, so clearing here can't break composition.
-      inputRef.current?.clear();
+      // Space / pause has committed the Hangul syllable, so clearing can't break composition.
+      setClearTick((n) => n + 1);
       textRef.current = '';
       contentH.current = 0;
       scrollY.current = 0;
@@ -357,7 +366,14 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
       setGraceMs(remaining);
       setPhase('grace');
     },
-    onExpire: startFade,
+    onExpire: () => {
+      if (instantRef.current) {
+        const word = textRef.current.trim();
+        if (word) releaseWord(word);
+      } else {
+        startFade();
+      }
+    },
     grace: !instant,
   });
 
@@ -388,7 +404,7 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
           onVentInput();
           releaseWord(word);
         } else {
-          inputRef.current?.clear();
+          setClearTick((n) => n + 1);
           textRef.current = '';
           setHasText(false);
         }
@@ -543,7 +559,6 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
     transform: [
       { translateX: kickX.value * kick.value },
       { translateY: -kickLift.value * kick.value },
-      { scale: 1 + kick.value * kickLift.value * 0.004 },
     ],
   }));
 
