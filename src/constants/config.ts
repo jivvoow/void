@@ -1,7 +1,7 @@
 import type { FadeDelay } from '../types';
 
 /** Choices offered in Settings. `null` = auto-fade off. */
-export const FADE_DELAY_OPTIONS: FadeDelay[] = [3, 15, 30, 60, null];
+export const FADE_DELAY_OPTIONS: FadeDelay[] = ['instant', 3, 15, 30, 60, null];
 export const DEFAULT_FADE_DELAY: FadeDelay = 30;
 
 /**
@@ -9,6 +9,9 @@ export const DEFAULT_FADE_DELAY: FadeDelay = 30;
  * Typing (or tapping the pill) during this window cancels the fade.
  */
 export const GRACE_WINDOW_MS = 5000;
+
+/** "즉시" mode: an unfinished last word (no space yet) is released after this much quiet. */
+export const INSTANT_IDLE_MS = 2000;
 
 /** Total length of the evaporation sequence (inhale → glyphs scatter → sparkles settle). */
 export const FADE_DURATION_MS = 3400;

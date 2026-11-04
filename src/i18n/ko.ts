@@ -1,3 +1,5 @@
+import type { FadeDelay } from '../types';
+
 export const ko = {
   brand: { en: 'VOID', ko: '훌훌' },
   slogan: '마음껏 쓰고, 훌훌 털어버려.',
@@ -7,11 +9,15 @@ export const ko = {
     prompt: '마음속 답답함,\n여기에 털어놓아요.',
     placeholder: '하고 싶은 말을 아무렇게나 써요...',
     pillVent: (delay: string) => `감정 방출중 · ${delay}`,
-    timerChip: (s: number | null) => (s == null ? '자동 소멸 꺼짐' : `${s}초 뒤 훌훌`),
-    timerShort: (s: number | null) => (s == null ? '꺼짐' : `${s}초`),
+    timerChip: (s: FadeDelay) => (s == null ? '자동 소멸 꺼짐' : s === 'instant' ? '쓰는 즉시 훌훌' : `${s}초 뒤 훌훌`),
+    timerShort: (s: FadeDelay) => (s == null ? '꺼짐' : s === 'instant' ? '즉시' : `${s}초`),
     timerPickerTitle: '멈추면 사라지기까지',
-    a11yTimer: (s: number | null) =>
-      s == null ? '자동 소멸 꺼짐. 눌러서 시간 바꾸기' : `입력을 멈추고 ${s}초 뒤 사라짐. 눌러서 시간 바꾸기`,
+    a11yTimer: (s: FadeDelay) =>
+      s == null
+        ? '자동 소멸 꺼짐. 눌러서 바꾸기'
+        : s === 'instant'
+          ? '단어를 다 쓸 때마다 바로 사라짐. 눌러서 바꾸기'
+          : `입력을 멈추고 ${s}초 뒤 사라짐. 눌러서 바꾸기`,
     restHint: '와다다 쏟아낼수록 구름이 꿀꺽 삼켜요',
     releaseBubble: '구름을 꾹 누르면 후~ 날려 보내요',
     a11yCloud: '감정을 머금은 구름. 길게 누르면 적은 글을 날려 보내요.',
@@ -30,8 +36,8 @@ export const ko = {
 
   onboarding: {
     skip: '건너뛰기',
-    next: '다음',
-    start: '시작하기',
+    tapNext: '카드를 눌러 넘겨요',
+    tapStart: '카드를 눌러 시작해요',
     steps: [
       {
         title: '와다다 쏟아내요',
@@ -43,7 +49,7 @@ export const ko = {
       },
       {
         title: '멈추면 저절로 사라져요',
-        body: '위쪽 ⏱에서 시간을 골라요 (3초~60초).\n저장도, 기록도 남지 않아요.',
+        body: '위쪽 ⏱에서 시간을 골라요.\n‘즉시’면 단어를 쓰는 족족 날아가요.',
       },
     ],
   },
@@ -53,8 +59,8 @@ export const ko = {
     replayGuide: '사용법 다시 보기',
     done: '완료',
     sectionFade: '자동 소멸',
-    fadeCaption: '마지막으로 입력한 뒤 이 시간이 지나면 글이 사라져요.',
-    fadeOption: (s: number | null) => (s == null ? '끄기' : `${s}초`),
+    fadeCaption: '마지막으로 입력한 뒤 이 시간이 지나면 글이 사라져요. ‘즉시’는 띄어쓰기할 때마다 방금 쓴 단어가 바로 흩어져요.',
+    fadeOption: (s: FadeDelay) => (s == null ? '끄기' : s === 'instant' ? '즉시' : `${s}초`),
     sectionFeel: '감각',
     haptics: '진동',
     hapticsCaption: '감정이 차오를 때와 글이 사라질 때 살짝 울려요.',

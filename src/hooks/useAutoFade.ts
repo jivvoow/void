@@ -12,6 +12,8 @@ interface Options {
   onGrace: (remainingMs: number) => void;
   /** Time is up — start the fade. */
   onExpire: () => void;
+  /** Show the cancellable warning window (off for the 2s idle release in "즉시" mode). */
+  grace?: boolean;
 }
 
 /**
@@ -23,7 +25,7 @@ interface Options {
  * - JS timers pause in the background; when the app becomes active again we
  *   recompute from wall-clock time, so an overdue note fades right away.
  */
-export function useAutoFade({ delayMs, armed, onGrace, onExpire }: Options) {
+export function useAutoFade({ delayMs, armed, onGrace, onExpire, grace: withGrace = true }: Options) {
   const lastInputAt = useRef(Date.now());
   const graceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const expireTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -31,8 +33,8 @@ export function useAutoFade({ delayMs, armed, onGrace, onExpire }: Options) {
   // Keep latest callbacks without re-scheduling on every render.
   const cbs = useRef({ onGrace, onExpire });
   cbs.current = { onGrace, onExpire };
-  const cfg = useRef({ delayMs, armed });
-  cfg.current = { delayMs, armed };
+  const cfg = useRef({ delayMs, armed, withGrace });
+  cfg.current = { delayMs, armed, withGrace };
 
   const clear = useCallback(() => {
     if (graceTimer.current) clearTimeout(graceTimer.current);
@@ -54,10 +56,12 @@ export function useAutoFade({ delayMs, armed, onGrace, onExpire }: Options) {
     // doesn't flash on every keystroke.
     const grace = delay <= GRACE_WINDOW_MS ? delay * 0.6 : GRACE_WINDOW_MS;
     const untilGrace = remaining - grace;
-    if (untilGrace <= 0) {
-      cbs.current.onGrace(remaining);
-    } else {
-      graceTimer.current = setTimeout(() => cbs.current.onGrace(grace), untilGrace);
+    if (cfg.current.withGrace) {
+      if (untilGrace <= 0) {
+        cbs.current.onGrace(remaining);
+      } else {
+        graceTimer.current = setTimeout(() => cbs.current.onGrace(grace), untilGrace);
+      }
     }
     expireTimer.current = setTimeout(() => cbs.current.onExpire(), remaining);
   }, [clear]);
@@ -71,7 +75,7 @@ export function useAutoFade({ delayMs, armed, onGrace, onExpire }: Options) {
   useEffect(() => {
     schedule();
     return clear;
-  }, [armed, delayMs, schedule, clear]);
+  }, [armed, delayMs, withGrace, schedule, clear]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {

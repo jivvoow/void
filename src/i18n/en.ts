@@ -1,3 +1,4 @@
+import type { FadeDelay } from '../types';
 import type { Strings } from './ko';
 
 /** English copy. Fill in as the English release approaches. */
@@ -9,11 +10,15 @@ export const en: Strings = {
     prompt: "What's weighing on you?\nLet it out here.",
     placeholder: 'Write whatever you want...',
     pillVent: (delay: string) => `Letting it out · ${delay}`,
-    timerChip: (s: number | null) => (s == null ? 'Auto-fade off' : `Gone ${s}s after you stop`),
-    timerShort: (s: number | null) => (s == null ? 'Off' : `${s}s`),
+    timerChip: (s: FadeDelay) => (s == null ? 'Auto-fade off' : s === 'instant' ? 'Gone as you type' : `Gone ${s}s after you stop`),
+    timerShort: (s: FadeDelay) => (s == null ? 'Off' : s === 'instant' ? 'Now' : `${s}s`),
     timerPickerTitle: 'Fade after you stop typing',
-    a11yTimer: (s: number | null) =>
-      s == null ? 'Auto-fade off. Tap to change' : `Fades ${s} seconds after you stop. Tap to change`,
+    a11yTimer: (s: FadeDelay) =>
+      s == null
+        ? 'Auto-fade off. Tap to change'
+        : s === 'instant'
+          ? 'Each word vanishes as soon as you finish it. Tap to change'
+          : `Fades ${s} seconds after you stop. Tap to change`,
     restHint: 'The faster you pour it out, the more the cloud gulps',
     releaseBubble: 'Hold the cloud to blow it all away',
     a11yCloud: 'A cloud full of your feelings. Long-press to blow your words away.',
@@ -31,12 +36,12 @@ export const en: Strings = {
   },
   onboarding: {
     skip: 'Skip',
-    next: 'Next',
-    start: 'Start',
+    tapNext: 'Tap the card to continue',
+    tapStart: 'Tap the card to begin',
     steps: [
       { title: 'Pour it out', body: 'The faster you type, the more\nthe cloud gulps it down and swells.' },
       { title: 'Hold the cloud', body: 'When you are done, press and hold.\nWhoosh — it all blows away.' },
-      { title: 'Or just stop', body: 'It fades on its own (pick 3–60s with ⏱).\nNothing is saved.' },
+      { title: 'Or just stop', body: 'It fades on its own (pick with ⏱).\n“Now” blows away every word as you go.' },
     ],
   },
   settings: {
@@ -45,7 +50,7 @@ export const en: Strings = {
     done: 'Done',
     sectionFade: 'Auto-fade',
     fadeCaption: 'Your words vanish after this long without typing.',
-    fadeOption: (s: number | null) => (s == null ? 'Off' : `${s}s`),
+    fadeOption: (s: FadeDelay) => (s == null ? 'Off' : s === 'instant' ? 'Now' : `${s}s`),
     sectionFeel: 'Feel',
     haptics: 'Haptics',
     hapticsCaption: 'Gentle taps as feelings build and when words fade.',
