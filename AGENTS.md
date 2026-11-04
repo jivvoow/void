@@ -39,3 +39,9 @@ Docs: https://docs.expo.dev/eas/index.md
 - If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
 - Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `npx expo run:ios|android` locally, or `eas build --profile development`.
 - Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md
+
+## Project-specific notes (VOID | 훌훌)
+
+- Intentionally a single screen (`src/screens/HomeScreen.tsx`) whose REST/VENT/FADE states are state, not routes; Settings is a `Modal`. Expo Router is not used — don't add it unless real multi-screen navigation appears.
+- Never store, log, or persist the user's text. It lives in one `useRef` + the native input only.
+- Keep the text input uncontrolled (no `value` prop) to protect Korean IME composition.

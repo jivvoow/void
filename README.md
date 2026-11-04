@@ -1,0 +1,88 @@
+# VOID | 훌훌
+
+> 마음껏 쓰고, 훌훌 털어버려. — *Type it out. Let it go.*
+
+짜증·분노·답답함을 마음껏 타이핑하면, 구름이 "후우" 하고 숨을 내쉬며 글이 반짝임으로 흩어지는 감정 배출 앱.
+React Native + Expo (SDK 58) + TypeScript + Reanimated 4. 서버·로그인·저장 없음, 완전 오프라인.
+
+## 실행
+
+```bash
+npm install
+npx expo start          # QR 코드를 Expo Go 앱으로 스캔
+npm run typecheck       # TypeScript 검사
+```
+
+- 휴대폰과 PC가 같은 Wi‑Fi에 있어야 합니다. 안 되면 `npx expo start --tunnel`.
+- Expo Go는 **SDK 58**을 지원하는 최신 버전이어야 합니다.
+
+### Expo Go vs 개발 빌드
+
+| 기능 | Expo Go | 개발 빌드 필요 |
+|---|---|---|
+| 메인 화면, 구름, 그라데이션, 입력, 자동/직접 소멸 | ✅ | |
+| Reanimated 애니메이션, SVG, 햅틱 | ✅ | |
+| 앱 전환 화면 보호 (iOS 블러, Android FLAG_SECURE) | ✅ (Expo Go 자체 설정과 섞일 수 있음) | 정확한 확인은 개발 빌드 권장 |
+| 앱 이름 "훌훌"·아이콘·스플래시 | ❌ (Expo Go 아이콘으로 표시) | ✅ `npx expo run:android` / `eas build --profile development` |
+| 효과음 (Phase 2+ 예정) | `expo-audio` 추가 시 Expo Go 가능 | |
+
+## 구조
+
+```
+App.tsx                      폰트 로딩, 설정 모달, 앱 전환 보호 커버
+src/
+  screens/HomeScreen.tsx     REST → VENT → GRACE → FADE → CLEAR 상태 머신 (한 화면)
+  screens/SettingsScreen.tsx 자동 소멸 시간, 진동, 효과음, 애니메이션 강도, 언어, 개인정보
+  components/                CloudCharacter, EmotionTextInput, FadeOverlay, StatusPill,
+                             ReleaseButton, SkyBackground, IntensityIndicator, PrivacyCover
+  hooks/useAutoFade.ts       마지막 입력 기준 타이머 + 취소 가능 구간 + 백그라운드 복귀 처리
+  hooks/useTypingIntensity.ts  (Phase 2) 타이핑 속도 → calm / building / burst
+  animations/                구름 호흡·숨 내쉬기, 소멸 진행도·입자 경로
+  utils/typingMetrics.ts     입력 이벤트 기반 속도 측정 (내용은 절대 보지 않음)
+  constants/                 theme(색·폰트), config(시간 값)
+  i18n/                      ko (기본), en (스텁)
+  state/SettingsContext.tsx  설정 (메모리)
+```
+
+## 설계 메모
+
+- **한글 IME**: 입력창은 비제어(uncontrolled) `TextInput`. `value`를 매 입력마다 다시 넣지 않아 iOS 조합이 깨지지 않음. 비울 때는 `key`를 바꿔 다시 마운트.
+- **개인정보**: 원문은 `useRef` 하나와 네이티브 입력창에만 존재. state/저장소/로그 없음. 소멸 시 ref 비우고 입력창 재마운트.
+- **소멸 연출**: 하나의 `fadeProgress`(0→1, 2.6초)가 글자·구름 숨·입자를 모두 구동. Phase 3에서 글자별 입자로 바꿀 때 같은 드라이버를 그대로 사용.
+
+## 수동 테스트 체크리스트
+
+**한글 입력**
+- [ ] "안녕하세요 진짜 짜증나" 를 빠르게/천천히 입력 → 자모가 중복되거나 커서가 튀지 않음
+- [ ] 중간 커서 이동 후 수정, 전체 선택 삭제 정상
+- [ ] 긴 글 입력 시 자동 스크롤, 키보드 위로 현재 줄이 보임 (iPhone SE 크기 포함)
+
+**자동 소멸** (설정 → 15초로 바꾸면 빠름)
+- [ ] 입력 멈춤 → (지연-5초) 시점에 "곧 훌훌 날아가요" 알약 + 줄어드는 바
+- [ ] 그 구간에 다시 타이핑 → 소멸 취소, 타이머 처음부터
+- [ ] 알약 탭 → 취소
+- [ ] 시간이 다 되면 키보드 내려감 → 구름 숨 내쉬기 + 글 흐려짐 + 반짝임 → "훌훌, 이제 보내줬어요." → 빈 화면
+- [ ] 소멸 중에는 입력·버튼 동작 안 함
+- [ ] 설정 "끄기" → 자동 소멸 없음, 알약에 "자동 소멸 꺼짐"
+
+**직접 소멸**
+- [ ] "훌훌 날리기" 짧게 탭 → 아무 일 없음
+- [ ] 0.8초 길게 누르기 → 채워지는 바 → 소멸
+- [ ] 중간에 손 떼면 취소
+
+**백그라운드 / 개인정보**
+- [ ] 글 쓰는 중 홈으로 → 앱 전환 화면에 글이 보이지 않음 (iOS: 구름 커버/블러, Android: 빈 화면)
+- [ ] 지연 시간보다 오래 백그라운드에 있다가 복귀 → 바로 소멸 연출
+- [ ] 앱 완전 종료 후 재실행 → 빈 화면, 이전 글 없음
+
+**접근성**
+- [ ] 기기 글꼴 크게 → 버튼·알약이 잘리지 않음
+- [ ] "동작 줄이기" 켜기 → 구름 흔들림·입자 최소화
+- [ ] VoiceOver/TalkBack: "훌훌 날리기"는 이중 탭으로 실행
+
+## 로드맵
+
+- **Phase 1 (현재)** MVP — 입력, 30초 자동 소멸, 길게 눌러 날리기, 초기 상태 복귀
+- **Phase 2** 타이핑 속도 → CALM/BUILDING/BURST, 구름 크기·색·표정, 파동, 햅틱
+- **Phase 3** 글자별 입자 소멸, 숨 내쉬기 고도화
+- **Phase 4** 아이콘·스플래시, 접근성·성능 다듬기, 실기기 테스트
