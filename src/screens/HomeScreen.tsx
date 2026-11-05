@@ -42,7 +42,7 @@ import { ReleaseButton } from '../components/ReleaseButton';
 import { RippleRings } from '../components/RippleRings';
 import { SkyBackground } from '../components/SkyBackground';
 import { StatusPill, type PillKind } from '../components/StatusPill';
-import { MAX_CUTS_PER_AXIS, MIN_CUT_GAP, TearPaper, type Cuts } from '../components/TearPaper';
+import { MAX_PIECES, TearPaper, type TearPaperHandle } from '../components/TearPaper';
 import { TimerPicker } from '../components/TimerPicker';
 import { TrailingText, TRAIL_LIFE_MS, type TrailingTextHandle } from '../components/TrailingText';
 import {
@@ -128,7 +128,9 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
   // Where the release wind comes from (the cloud's mouth) in the text overlay's coordinates.
   const [blowGeo, setBlowGeo] = useState({ origin: { x: 0, y: 0 }, reach: 300 });
   // "찢어서 홀씨": the paper being torn (only exists during a release in that style).
-  const [tear, setTearState] = useState<{ interactive: boolean; cuts: Cuts; paperH: number; seed: number } | null>(null);
+  // `pieces` = how many scraps the sheet is in right now.
+  const [tear, setTearState] = useState<{ interactive: boolean; pieces: number; paperH: number; seed: number } | null>(null);
+  const paperRef = useRef<TearPaperHandle>(null);
   const tearRef = useRef(tear);
   const setTear = useCallback((v: typeof tear) => {
     tearRef.current = v;
@@ -397,75 +399,63 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
   }, [releaseLayout, runBlow, setTear]);
 
   /** Keep tearing, or the cloud blows once you pause (sooner when it's in tatters). */
-  const scheduleTearBlow = useCallback(
-    (cuts: Cuts) => {
-      clearTearTimers();
-      if (tearDragging.current) return; // still tearing — wait for the finger to lift
-      const n = cuts.v.length + cuts.h.length;
-      if (n === 0) {
-        // Touched but didn't tear: let them try again, and tear it for them after a while.
-        tearTimers.current.push(setTimeout(() => autoTearRef.current(), 7000));
-        return;
-      }
-      tearTimers.current.push(setTimeout(blowTear, n >= MAX_CUTS_PER_AXIS * 2 ? 550 : 1500));
-    },
-    [blowTear],
-  );
+  const scheduleTearBlow = useCallback(() => {
+    clearTearTimers();
+    const cur = tearRef.current;
+    if (!cur?.interactive || tearDragging.current) return; // still tearing — wait for the finger
+    if (cur.pieces <= 1) {
+      // Touched but didn't tear: let them try again, and tear it for them after a while.
+      tearTimers.current.push(setTimeout(() => autoTearRef.current(), 7000));
+      return;
+    }
+    tearTimers.current.push(setTimeout(blowTear, cur.pieces >= MAX_PIECES ? 550 : 1500));
+  }, [blowTear]);
   const onTearDragStart = useCallback(() => {
     tearDragging.current = true;
     clearTearTimers();
   }, []);
   const onTearDragEnd = useCallback(() => {
     tearDragging.current = false;
-    const cur = tearRef.current;
-    if (cur?.interactive) scheduleTearBlow(cur.cuts);
+    scheduleTearBlow();
   }, [scheduleTearBlow]);
 
-  const addCut = useCallback(
-    (dir: 'v' | 'h', pos: number) => {
+  /** The sheet just ripped (by finger or by autoTear). */
+  const onTorn = useCallback(
+    (pieces: number) => {
       const cur = tearRef.current;
-      if (!cur || !cur.interactive) return false;
-      const size = dir === 'v' ? paperW : cur.paperH;
-      const list = dir === 'v' ? cur.cuts.v : cur.cuts.h;
-      const ok =
-        list.length < MAX_CUTS_PER_AXIS &&
-        pos > MIN_CUT_GAP &&
-        pos < size - MIN_CUT_GAP &&
-        list.every((c) => Math.abs(c - pos) > MIN_CUT_GAP);
-      if (!ok) return false;
-      const cuts = dir === 'v' ? { ...cur.cuts, v: [...cur.cuts.v, pos] } : { ...cur.cuts, h: [...cur.cuts.h, pos] };
-      setTear({ ...cur, cuts });
+      if (!cur || !cur.interactive) return;
+      setTear({ ...cur, pieces });
       haptics.medium();
       sfx.rip();
-      scheduleTearBlow(cuts);
-      return true;
+      scheduleTearBlow();
     },
-    [paperW, setTear, haptics, sfx, scheduleTearBlow],
+    [setTear, haptics, sfx, scheduleTearBlow],
   );
 
-  /** Tear it for the user (timer expiry, a tap without swiping, or no swipe for a while). */
+  /** Tear it for the user (timer expiry, a tap without tearing, or no tearing for a while). */
   const autoTear = useCallback(() => {
     const cur = tearRef.current;
     if (!cur || !cur.interactive) return;
     clearTearTimers();
-    const need = cur.cuts.v.length + cur.cuts.h.length === 0;
+    const need = cur.pieces <= 1;
     if (need) {
       tearTimers.current.push(
-        setTimeout(() => addCut('v', paperW * (0.38 + Math.random() * 0.24)), 160),
+        setTimeout(() => paperRef.current?.tearRandom(), 160),
         setTimeout(() => {
           const t2 = tearRef.current;
-          if (t2 && t2.paperH > 120) addCut('h', t2.paperH * (0.4 + Math.random() * 0.2));
+          if (t2 && t2.paperH > 120) paperRef.current?.tearRandom();
         }, 430),
       );
     }
-    tearTimers.current.push(setTimeout(blowTear, need ? 950 : 150));
-  }, [addCut, blowTear, paperW]);
+    // onTorn re-schedules; this is the backstop.
+    tearTimers.current.push(setTimeout(blowTear, need ? 1150 : 150));
+  }, [blowTear]);
   autoTearRef.current = autoTear;
 
   const onPaperTap = useCallback(() => {
     const cur = tearRef.current;
     if (!cur || !cur.interactive) return;
-    if (cur.cuts.v.length + cur.cuts.h.length === 0) autoTear();
+    if (cur.pieces <= 1) autoTear();
     else blowTear();
   }, [autoTear, blowTear]);
 
@@ -491,7 +481,7 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
       if (releaseStyleRef.current === 'tear') {
         const paperH = clamp((contentH.current || 80) * 0.82 + 40, 150, canvasH - 80);
         fadeSeed.current = (fadeSeed.current * 9301 + 49297) % 233280;
-        setTear({ interactive: true, cuts: { v: [], h: [] }, paperH, seed: fadeSeed.current });
+        setTear({ interactive: true, pieces: 1, paperH, seed: fadeSeed.current });
         clearTearTimers();
         if (byHand) tearTimers.current.push(setTimeout(() => autoTear(), 7000));
         else tearTimers.current.push(setTimeout(() => autoTear(), 350));
@@ -887,13 +877,13 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
             {fadeText != null && tear && (
               <View style={styles.glyphLayer} pointerEvents="box-none">
                 <TearPaper
+                  ref={paperRef}
                   text={fadeText}
                   width={paperW}
                   height={tear.paperH}
                   top={PAPER_TOP}
-                  cuts={tear.cuts}
                   interactive={tear.interactive}
-                  onCut={addCut}
+                  onTorn={onTorn}
                   onTap={onPaperTap}
                   onDragStart={onTearDragStart}
                   onDragEnd={onTearDragEnd}
@@ -901,7 +891,7 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
                   origin={blowGeo.origin}
                   gentle={soft}
                   seed={tear.seed}
-                  hint={tear.cuts.v.length + tear.cuts.h.length > 0 ? t.home.tearHintMore : t.home.tearHint}
+                  hint={tear.pieces > 1 ? t.home.tearHintMore : t.home.tearHint}
                   a11yLabel={t.home.a11yPaper}
                 />
               </View>
