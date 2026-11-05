@@ -56,7 +56,7 @@ const styles = StyleSheet.create({
     borderColor: glass.border,
     gap: 8,
   },
-  title: { fontFamily: fonts.hand, fontSize: 16, color: 'rgba(255,255,255,0.85)', textAlign: 'center' },
+  title: { fontFamily: fonts.hand, fontSize: 17, color: 'rgba(255,255,255,0.85)', textAlign: 'center' },
   row: { flexDirection: 'row', gap: 6 },
   item: {
     flex: 1,
@@ -68,6 +68,6 @@ const styles = StyleSheet.create({
   },
   pressed: { backgroundColor: glass.fillStrong },
   selected: { backgroundColor: '#FFFFFF' },
-  label: { fontFamily: fonts.handBold, fontSize: 17, color: '#FFFFFF', includeFontPadding: false },
+  label: { fontFamily: fonts.handBold, fontSize: 18, color: '#FFFFFF', includeFontPadding: false },
   labelSelected: { color: '#77758F' },
 });

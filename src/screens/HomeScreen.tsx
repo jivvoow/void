@@ -777,9 +777,10 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
                     label={t.home.release}
                     a11yLabel={t.home.a11yRelease}
                     hold={hold}
-                    onPressIn={onPressIn}
-                    onPressOut={onPressOut}
-                    onAccessibleRelease={startFade}
+                    onRelease={() => {
+                      haptics.tick();
+                      startFade();
+                    }}
                   />
                 </Animated.View>
               </Animated.View>
@@ -822,8 +823,8 @@ const styles = StyleSheet.create({
   promptWrap: { position: 'absolute', top: '10%', left: GUTTER, right: GUTTER, alignItems: 'center' },
   prompt: {
     fontFamily: fonts.hand,
-    fontSize: 30,
-    lineHeight: 40,
+    fontSize: 32,
+    lineHeight: 43,
     color: '#FFFFFF',
     textAlign: 'center',
     textShadowColor: 'rgba(90, 80, 120, 0.25)',
@@ -834,7 +835,7 @@ const styles = StyleSheet.create({
   restHint: {
     marginTop: 14,
     fontFamily: fonts.hand,
-    fontSize: 18,
+    fontSize: 19,
     color: 'rgba(255,255,255,0.82)',
     textAlign: 'center',
   },

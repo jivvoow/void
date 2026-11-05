@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
   chevronUp: { transform: [{ rotate: '180deg' }] },
   label: {
     fontFamily: fonts.hand,
-    fontSize: 17,
+    fontSize: 18,
     color: '#FFFFFF',
     includeFontPadding: false,
     flexShrink: 1,

@@ -6,8 +6,8 @@ import { fonts, palette } from '../constants/theme';
 /** Shared with GlyphEvaporation so the dissolving overlay lands exactly on the typed words. */
 export const CANVAS_TEXT_STYLE: TextStyle = {
   fontFamily: fonts.handBold,
-  fontSize: 30,
-  lineHeight: Platform.select({ ios: 40, default: 42 }),
+  fontSize: 32,
+  lineHeight: Platform.select({ ios: 43, default: 45 }),
   color: '#FFFFFF',
   textShadowColor: 'rgba(110, 90, 140, 0.25)',
   textShadowOffset: { width: 0, height: 1 },
@@ -94,8 +94,8 @@ const styles = StyleSheet.create({
   },
   card: {
     fontFamily: fonts.hand,
-    fontSize: 20,
-    lineHeight: 28,
+    fontSize: 21,
+    lineHeight: 30,
     color: palette.ink,
     paddingTop: 18,
     paddingBottom: 18,

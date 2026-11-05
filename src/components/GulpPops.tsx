@@ -89,7 +89,7 @@ const styles = StyleSheet.create({
     width: 120,
     textAlign: 'center',
     fontFamily: fonts.hand,
-    fontSize: 24,
+    fontSize: 25,
     color: '#FFFFFF',
     textShadowColor: 'rgba(200, 120, 140, 0.55)',
     textShadowOffset: { width: 0, height: 1 },

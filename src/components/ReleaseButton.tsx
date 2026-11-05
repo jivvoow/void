@@ -18,12 +18,10 @@ import { FeatherIcon } from './Icons';
 interface Props {
   label: string;
   a11yLabel: string;
-  /** Shared hold progress from useHoldToRelease (the cloud uses the same value). */
+  /** Hold progress of the cloud (holding the cloud fills this button too). */
   hold: SharedValue<number>;
-  onPressIn: () => void;
-  onPressOut: () => void;
-  /** Screen readers can't "hold"; their activate action releases directly. */
-  onAccessibleRelease: () => void;
+  /** A single tap blows everything away. */
+  onRelease: () => void;
 }
 
 /**
@@ -31,7 +29,7 @@ interface Props {
  * a blush→peach pill with a soft glow that gently breathes. Fills up white while held;
  * a tap alone does nothing destructive.
  */
-function ReleaseButtonBase({ label, a11yLabel, hold, onPressIn, onPressOut, onAccessibleRelease }: Props) {
+function ReleaseButtonBase({ label, a11yLabel, hold, onRelease }: Props) {
   const reduced = useReducedMotion();
   const beat = useSharedValue(0);
 
@@ -56,18 +54,9 @@ function ReleaseButtonBase({ label, a11yLabel, hold, onPressIn, onPressOut, onAc
   }));
 
   return (
-    <Pressable
-      onPressIn={onPressIn}
-      onPressOut={onPressOut}
-      accessibilityRole="button"
-      accessibilityLabel={a11yLabel}
-      accessibilityActions={[{ name: 'activate' }]}
-      onAccessibilityAction={(e) => {
-        if (e.nativeEvent.actionName === 'activate') onAccessibleRelease();
-      }}
-      hitSlop={10}
-    >
-      <Animated.View style={bodyStyle}>
+    <Pressable onPress={onRelease} accessibilityRole="button" accessibilityLabel={a11yLabel} hitSlop={10}>
+      {({ pressed }) => (
+      <Animated.View style={[bodyStyle, pressed && styles.pressed]}>
         <Animated.View style={[styles.halo, haloStyle]} pointerEvents="none" />
         <View style={styles.shadow}>
           <View style={styles.button}>
@@ -85,6 +74,7 @@ function ReleaseButtonBase({ label, a11yLabel, hold, onPressIn, onPressOut, onAc
           </View>
         </View>
       </Animated.View>
+      )}
     </Pressable>
   );
 }
@@ -92,6 +82,7 @@ function ReleaseButtonBase({ label, a11yLabel, hold, onPressIn, onPressOut, onAc
 export const ReleaseButton = memo(ReleaseButtonBase);
 
 const styles = StyleSheet.create({
+  pressed: { opacity: 0.85 },
   halo: {
     position: 'absolute',
     top: 0,
@@ -131,7 +122,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontFamily: fonts.handBold,
-    fontSize: 20,
+    fontSize: 21,
     color: '#FFFFFF',
     includeFontPadding: false,
     textShadowColor: 'rgba(180, 90, 110, 0.45)',

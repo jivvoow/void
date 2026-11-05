@@ -23,5 +23,5 @@ export function PrivacyCover({ label }: { label: string }) {
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 18 },
-  label: { fontFamily: fonts.hand, fontSize: 24, color: '#FFFFFF', letterSpacing: 2 },
+  label: { fontFamily: fonts.hand, fontSize: 25, color: '#FFFFFF', letterSpacing: 2 },
 });

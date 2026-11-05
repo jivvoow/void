@@ -36,7 +36,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 3,
   },
-  text: { fontFamily: fonts.hand, fontSize: 16, color: '#6B6480' },
+  text: { fontFamily: fonts.hand, fontSize: 17, color: '#6B6480' },
   tail: {
     width: 10,
     height: 10,
