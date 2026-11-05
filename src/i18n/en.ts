@@ -60,7 +60,7 @@ export const en: Strings = {
     animation: 'Animation',
     animationSoft: 'Soft',
     animationFull: 'Full',
-    animationCaption: 'Automatically softened when Reduce Motion is on.',
+    animationCaption: 'Starts from your device’s Reduce Motion setting; change it any time here.',
     sectionLanguage: 'Language',
     languageKo: '한국어',
     languageEnSoon: 'English (coming soon)',

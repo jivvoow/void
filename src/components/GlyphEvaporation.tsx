@@ -29,6 +29,8 @@ interface Props {
   origin: { x: number; y: number };
   /** Distance at which glyphs are hit last (≈ the text area's height). */
   reach: number;
+  /** Calm motion: seeds barely travel. */
+  gentle?: boolean;
 }
 
 type Token = { kind: 'piece'; text: string; word: number } | { kind: 'break'; empty: boolean };
@@ -51,26 +53,27 @@ type Choreo = {
  * wide — nearest lines first — and each drifts up on its own under a little white tuft.
  * The live TextInput is hidden underneath, so the IME is never touched.
  */
-function GlyphEvaporationBase({ text, progress, textStyle, padding, scrollY, seed, origin, reach }: Props) {
+function GlyphEvaporationBase({ text, progress, textStyle, padding, scrollY, seed, origin, reach, gentle = false }: Props) {
   const { tokens, count } = useMemo(() => tokenize(text), [text]);
   const lineH = (textStyle.lineHeight as number) ?? 40;
 
   // Stable per-piece randomness for this fade.
   const choreo = useMemo(() => {
     const rnd = mulberry32(seed);
+    const k = gentle ? 0.25 : 1;
     return Array.from({ length: count }, (): Choreo => ({
       j1: rnd(),
       j2: rnd(),
-      travel: 150 + rnd() * 240,
-      lift: 80 + rnd() * 130,
+      travel: (150 + rnd() * 240) * k,
+      lift: (80 + rnd() * 130) * k,
       fan: (rnd() - 0.5) * 1.9, // ±55° around "away from the mouth"
-      sway: 12 + rnd() * 20,
+      sway: (12 + rnd() * 20) * k,
       freq: 0.7 + rnd() * 0.9,
       tilt: (rnd() - 0.5) * 50,
       phase: rnd() * Math.PI * 2,
       tuft: 4 + rnd() * 3,
     }));
-  }, [seed, count]);
+  }, [seed, count, gentle]);
 
   // Group pieces by word so a word never breaks across lines (matches TextInput wrapping).
   const out: React.ReactNode[] = [];

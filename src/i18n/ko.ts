@@ -70,7 +70,7 @@ export const ko = {
     animation: '애니메이션 강도',
     animationSoft: '은은하게',
     animationFull: '풍성하게',
-    animationCaption: '기기의 ‘동작 줄이기’ 설정이 켜져 있으면 자동으로 은은하게 표시돼요.',
+    animationCaption: '처음에는 기기의 ‘동작 줄이기’ 설정을 따라요. 여기서 언제든 바꿀 수 있어요.',
     sectionLanguage: '언어',
     languageKo: '한국어',
     languageEnSoon: 'English (준비 중)',

@@ -4,7 +4,6 @@ import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
-  useReducedMotion,
   useSharedValue,
   withRepeat,
   withSequence,
@@ -22,6 +21,8 @@ interface Props {
   hold: SharedValue<number>;
   /** A single tap blows everything away. */
   onRelease: () => void;
+  /** Calm motion (in-app animation setting). */
+  soft?: boolean;
 }
 
 /**
@@ -29,8 +30,7 @@ interface Props {
  * a blush→peach pill with a soft glow that gently breathes. Fills up white while held;
  * a tap alone does nothing destructive.
  */
-function ReleaseButtonBase({ label, a11yLabel, hold, onRelease }: Props) {
-  const reduced = useReducedMotion();
+function ReleaseButtonBase({ label, a11yLabel, hold, onRelease, soft: reduced = false }: Props) {
   const beat = useSharedValue(0);
 
   useEffect(() => {

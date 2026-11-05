@@ -19,7 +19,6 @@ import Animated, {
   FadeOut,
   interpolate,
   useAnimatedStyle,
-  useReducedMotion,
   useSharedValue,
   withDelay,
   withSequence,
@@ -103,8 +102,7 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
   const haptics = useHaptics();
   const insets = useSafeAreaInsets();
   const win = useWindowDimensions();
-  const systemReduced = useReducedMotion();
-  const soft = systemReduced || settings.animationLevel === 'soft';
+  const soft = settings.animationLevel === 'soft';
 
   /* ───────── session state ───────── */
   const [phase, setPhaseState] = useState<VentPhase>('rest');
@@ -754,6 +752,7 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
                   padding={CANVAS_PADDING}
                   scrollY={scrollY.current}
                   seed={fadeSeedForGlyphs}
+                  gentle={soft}
                   origin={blowGeo.origin}
                   reach={blowGeo.reach}
                 />
@@ -777,6 +776,7 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
                     label={t.home.release}
                     a11yLabel={t.home.a11yRelease}
                     hold={hold}
+                    soft={soft}
                     onRelease={() => {
                       haptics.tick();
                       startFade();

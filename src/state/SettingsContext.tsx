@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AccessibilityInfo } from 'react-native';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { DEFAULT_FADE_DELAY, FADE_DELAY_OPTIONS } from '../constants/config';
@@ -48,8 +49,14 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY)
-      .then((json) => {
-        if (json) setSettings(sanitize(JSON.parse(json)));
+      .then(async (json) => {
+        const raw = json ? (JSON.parse(json) as Record<string, unknown>) : null;
+        const s = sanitize(raw);
+        if (!raw || (raw.animationLevel !== 'soft' && raw.animationLevel !== 'full')) {
+          const reduced = await AccessibilityInfo.isReduceMotionEnabled().catch(() => false);
+          s.animationLevel = reduced ? 'soft' : 'full';
+        }
+        setSettings(s);
       })
       .catch(() => {})
       .finally(() => setHydrated(true));

@@ -4,6 +4,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { AppState, Modal, Platform, StyleSheet, View, type AppStateStatus } from 'react-native';
+import { ReducedMotionConfig, ReduceMotion } from 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { Onboarding } from './src/components/Onboarding';
@@ -24,6 +25,13 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
+      {/*
+        By default Reanimated jumps every animation straight to its end when the OS asks for
+        reduced motion (iOS "Reduce Motion", Android "Remove animations", Samsung power saving…).
+        Here that made the whole release vanish in one frame. Motion is governed instead by the
+        in-app "애니메이션 강도" setting, whose first value follows the OS preference.
+      */}
+      <ReducedMotionConfig mode={ReduceMotion.Never} />
       <SettingsProvider>
         <Root />
       </SettingsProvider>
