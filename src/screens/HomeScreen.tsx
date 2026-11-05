@@ -413,12 +413,6 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
 
   const selectDelay = useCallback(
     (v: FadeDelay) => {
-      const wasInstant = settings.fadeDelay === 'instant';
-      if (textRef.current && wasInstant !== (v === 'instant')) {
-        // Leaving "즉시": already-melted glyphs must not reappear. Entering it: start melting now.
-        if (wasInstant) quietClear();
-        else trailRef.current?.set(textRef.current);
-      }
       update({ fadeDelay: v });
       setPickerOpen(false);
       haptics.tick();
@@ -428,8 +422,23 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
         if (phaseRef.current === 'grace') setPhase('vent');
       }
     },
-    [update, haptics, touch, setPhase, settings.fadeDelay, quietClear],
+    [update, haptics, touch, setPhase],
   );
+
+  /**
+   * Crossing the "즉시" boundary (from the picker OR Settings) remounts the input — see its `key`.
+   * The native view keeps the old glyph colour on text it already holds (and new characters inherit
+   * it), so a ghost input switched back to normal would stay invisible. The words on screen go too:
+   * melted glyphs must never reappear, and a remounted input starts empty anyway.
+   */
+  const prevInstant = useRef(instant);
+  useEffect(() => {
+    if (prevInstant.current === instant) return;
+    prevInstant.current = instant;
+    if (textRef.current) quietClear();
+    setFocused(false); // the old input unmounts without firing onBlur
+    if (phaseRef.current === 'vent' || phaseRef.current === 'grace') setPhase('rest');
+  }, [instant, quietClear, setPhase]);
 
   useEffect(() => {
     if (phase === 'fade' || phase === 'grace') setPickerOpen(false);
@@ -566,7 +575,10 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
         {/* Header */}
         <View style={styles.header}>
           <Pressable
-            onPress={onOpenSettings}
+            onPress={() => {
+              dismissKeyboard(); // otherwise it pops back up over the guide / after the sheet closes
+              onOpenSettings();
+            }}
             disabled={phase === 'fade'}
             hitSlop={12}
             accessibilityRole="button"
@@ -668,7 +680,7 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
             <Animated.View style={[styles.shell, shellStyle]}>
               <Animated.View style={[styles.flex, kickStyle, phase === 'fade' && styles.hidden]}>
                 <EmotionTextInput
-                  key={inputKey}
+                  key={`${inputKey}${instant ? '-ghost' : ''}`}
                   ref={inputRef}
                   mode={writing ? 'canvas' : 'card'}
                   ghost={instant}

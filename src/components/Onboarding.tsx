@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeInRight, FadeOut, FadeOutLeft } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -21,6 +21,18 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
   const last = step === t.steps.length - 1;
   const { title, body } = t.steps[step];
   const advance = () => (last ? onDone() : setStep(step + 1));
+
+  // The guide covers the whole screen: never leave the keyboard up underneath it.
+  // (Replayed from Settings, the input can regain focus while the sheet animates away → retry.)
+  useEffect(() => {
+    Keyboard.dismiss();
+    const t1 = setTimeout(() => Keyboard.dismiss(), 400);
+    const t2 = setTimeout(() => Keyboard.dismiss(), 900);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, []);
 
   return (
     <Animated.View entering={FadeIn.duration(400)} exiting={FadeOut.duration(350)} style={styles.backdrop}>
