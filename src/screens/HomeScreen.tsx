@@ -31,7 +31,6 @@ import { scheduleOnRN } from 'react-native-worklets';
 
 import { BLOW, buildParticles, type ParticleSpec } from '../animations/fadeAnimations';
 import { CloudCharacter, CLOUD_ASPECT, CLOUD_MOUTH } from '../components/CloudCharacter';
-import { EmotionStream, SPARK_FLIGHT_MS, type EmotionStreamHandle } from '../components/EmotionStream';
 import { CANVAS_PADDING, CANVAS_TEXT_STYLE, EmotionTextInput } from '../components/EmotionTextInput';
 import { FadeOverlay } from '../components/FadeOverlay';
 import { GlyphEvaporation } from '../components/GlyphEvaporation';
@@ -76,6 +75,8 @@ const KICK: Record<Intensity, { lift: number; jitter: number }> = {
   building: { lift: 2, jitter: 2.5 },
   burst: { lift: 3.6, jitter: 6 },
 };
+/** Mouth open → swallow delay for each "꿀꺽". */
+const GULP_DELAY_MS = 200;
 const WARMTH: Record<Intensity, number> = { calm: 0.2, building: 0.5, burst: 0.85 };
 /** Minimum gap between "꿀꺽" pop-ups, by intensity (faster venting → more gulping). */
 const GULP_POP_MS: Record<Intensity, number> = { calm: 900, building: 560, burst: 340 };
@@ -197,8 +198,7 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
   const kick = useSharedValue(0); // words hop on each keystroke
   const kickLift = useSharedValue(0);
   const kickX = useSharedValue(0);
-  const streamRef = useRef<EmotionStreamHandle>(null);
-  const lastSpark = useRef(0);
+  const lastGulp = useRef(0);
   const lastGulpHaptic = useRef(0);
 
   useEffect(() => {
@@ -230,13 +230,7 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
     fadeProgress.value = 0;
   }, [inputKey, fadeProgress]);
 
-  /** Where the cloud's belly is right now (main-area coords). */
-  const cloudTarget = useCallback(() => {
-    const s = kbdVisible ? CANVAS_SCALE_KBD : CANVAS_SCALE_OPEN;
-    return { x: win.width / 2 + (Math.random() - 0.5) * 30, y: mainH.value + 6 - cloudH * s * 0.5 };
-  }, [kbdVisible, win.width, mainH, cloudH]);
-
-  /** One keystroke of venting: words hop, a spark flies, the cloud gulps and fills. */
+  /** One keystroke of venting: words hop, the cloud opens wide, gulps and fills. */
   const onVentInput = useCallback(() => {
     recordInput();
     const lv = intensityRef.current;
@@ -248,19 +242,12 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
     }
 
     const now = Date.now();
-    if (now - lastSpark.current < SPARK_THROTTLE_MS) return;
-    lastSpark.current = now;
+    if (now - lastGulp.current < SPARK_THROTTLE_MS) return;
+    lastGulp.current = now;
 
     const s = kbdVisible ? CANVAS_SCALE_KBD : CANVAS_SCALE_OPEN;
-    const canvasH = Math.max(110, mainH.value - cloudH * s * 0.92 - 4);
-    const from = {
-      x: GUTTER + 24 + Math.random() * (win.width - GUTTER * 2 - 48),
-      y: clamp(contentH.current - scrollY.current - 24, 24, canvasH - 30),
-    };
-    if (!soft) streamRef.current?.emit(from, cloudTarget(), lv);
-
-    const landing = soft ? 0 : SPARK_FLIGHT_MS;
-    // "아~" — the mouth opens for the incoming spark, then snaps shut on the swallow.
+    const landing = soft ? 0 : GULP_DELAY_MS;
+    // "아~" — the mouth opens for the feeling, then snaps shut on the swallow.
     gape.value = withSequence(
       withTiming(1, { duration: 110 }),
       withDelay(Math.max(0, landing - 150), withTiming(0, { duration: 90 })),
@@ -287,7 +274,7 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
       lastGulpHaptic.current = now;
       setTimeout(haptics.light, landing);
     }
-  }, [recordInput, soft, kickLift, kickX, kick, kbdVisible, mainH, cloudH, cloudW, win.width, cloudTarget, charge, pulse, gape, haptics, t]);
+  }, [recordInput, soft, kickLift, kickX, kick, kbdVisible, mainH, cloudH, cloudW, win.width, charge, pulse, gape, haptics, t]);
 
   /**
    * "즉시" mode: once every glyph has melted (a short pause), quietly empty the native input
@@ -760,7 +747,6 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
             )}
 
             {/* Sparks of feeling flying from the words into the cloud */}
-            <EmotionStream ref={streamRef} />
             <GulpPops ref={gulpRef} />
 
             {/* "훌훌 날리기" chip above the cloud + one-time hint */}

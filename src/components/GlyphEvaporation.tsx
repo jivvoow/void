@@ -64,8 +64,8 @@ function GlyphEvaporationBase({ text, progress, textStyle, padding, scrollY, see
     return Array.from({ length: count }, (): Choreo => ({
       j1: rnd(),
       j2: rnd(),
-      travel: (150 + rnd() * 240) * k,
-      lift: (80 + rnd() * 130) * k,
+      travel: (210 + rnd() * 300) * k,
+      lift: (120 + rnd() * 160) * k,
       fan: (rnd() - 0.5) * 1.9, // ±55° around "away from the mouth"
       sway: (12 + rnd() * 20) * k,
       freq: 0.7 + rnd() * 0.9,
