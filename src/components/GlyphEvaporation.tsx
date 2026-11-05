@@ -4,6 +4,7 @@ import Animated, {
   Extrapolation,
   interpolate,
   useAnimatedStyle,
+  useDerivedValue,
   useSharedValue,
   type SharedValue,
 } from 'react-native-reanimated';
@@ -31,12 +32,23 @@ interface Props {
 }
 
 type Token = { kind: 'piece'; text: string; word: number } | { kind: 'break'; empty: boolean };
-type Choreo = { j1: number; j2: number; travel: number; rot: number; phase: number; side: number; spark: number };
+type Choreo = {
+  j1: number;
+  j2: number;
+  travel: number;
+  lift: number;
+  fan: number;
+  sway: number;
+  freq: number;
+  tilt: number;
+  phase: number;
+  tuft: number;
+};
 
 /**
- * The words being blown away. They are re-laid out as pieces (characters, or words for long
- * notes) that tremble while the cloud inhales, then get caught by its breath — the lines
- * nearest the cloud first — and tumble off the top of the screen, each leaving a sparkle.
+ * The words being blown away like dandelion seeds. They are re-laid out as pieces (characters,
+ * or words for long notes) that tremble while the cloud inhales; its breath then scatters them
+ * wide — nearest lines first — and each drifts up on its own under a little white tuft.
  * The live TextInput is hidden underneath, so the IME is never touched.
  */
 function GlyphEvaporationBase({ text, progress, textStyle, padding, scrollY, seed, origin, reach }: Props) {
@@ -49,11 +61,14 @@ function GlyphEvaporationBase({ text, progress, textStyle, padding, scrollY, see
     return Array.from({ length: count }, (): Choreo => ({
       j1: rnd(),
       j2: rnd(),
-      travel: 380 + rnd() * 320,
-      rot: (rnd() - 0.5) * 420,
+      travel: 150 + rnd() * 240,
+      lift: 80 + rnd() * 130,
+      fan: (rnd() - 0.5) * 1.9, // ±55° around "away from the mouth"
+      sway: 12 + rnd() * 20,
+      freq: 0.7 + rnd() * 0.9,
+      tilt: (rnd() - 0.5) * 50,
       phase: rnd() * Math.PI * 2,
-      side: rnd() < 0.5 ? -1 : 1,
-      spark: 3 + rnd() * 3,
+      tuft: 4 + rnd() * 3,
     }));
   }, [seed, count]);
 
@@ -139,73 +154,75 @@ function Piece({
     cy.value = l.y + l.height / 2;
   };
 
-  /** Shared math: where the wind carries this piece at progress g. */
-  const glyphStyle = useAnimatedStyle(() => {
-    const g = progress.value;
+  /** 0 → 1 flight clock of this seed (nearest to the cloud is puffed off first). */
+  const flight = useDerivedValue(() => {
     const gx = ox.value + cx.value - origin.x;
     const gy = oy.value + cy.value - origin.y;
     const dist = Math.max(1, Math.sqrt(gx * gx + gy * gy));
-    const nx = gx / dist;
-    const ny = gy / dist;
-    // Nearest to the cloud gets hit first; the far lines a beat later.
-    const start = BLOW.blowStart + Math.min(1, dist / Math.max(1, reach)) * 0.26 + c.j1 * 0.06;
-    const life = 0.26 + c.j2 * 0.12;
-    const t = interpolate(g, [start, start + life], [0, 1], Extrapolation.CLAMP);
+    const start = BLOW.blowStart + Math.min(1, dist / Math.max(1, reach)) * 0.2 + c.j1 * 0.12;
+    const life = Math.min(0.42 + c.j2 * 0.16, 0.995 - start);
+    return interpolate(progress.value, [start, start + life], [0, 1], Extrapolation.CLAMP);
+  });
 
-    // Inhale: everything trembles and is drawn a little toward the cloud.
+  // Like dandelion seeds: a soft puff scatters them wide, then each one drifts up on its own,
+  // swaying side to side under a little white tuft, and dissolves into the sky.
+  const seedStyle = useAnimatedStyle(() => {
+    const g = progress.value;
+    const t = flight.value;
+    const gx = ox.value + cx.value - origin.x;
+    const gy = oy.value + cy.value - origin.y;
+    const base = Math.atan2(gy, gx) + c.fan; // away from the mouth, fanned wide
+    const dirX = Math.cos(base);
+    const dirY = Math.sin(base);
+
+    // Inhale: everything trembles and is drawn a hair toward the cloud.
     const inhale = interpolate(g, [0, BLOW.inhaleEnd, BLOW.blowStart], [0, 1, 0], Extrapolation.CLAMP);
-    const waiting = g < start ? 1 : 0;
-    const shiver = waiting * Math.sin(g * 90 + c.phase) * (0.6 + inhale * 1.4 + (g > BLOW.blowStart ? 1.8 : 0));
-    const pull = inhale * 7;
+    const shiver = t === 0 ? Math.sin(g * 80 + c.phase) * (0.5 + inhale * 1.3 + (g > BLOW.blowStart ? 1.2 : 0)) : 0;
+    const len = Math.max(1, Math.sqrt(gx * gx + gy * gy));
+    const pullX = (-gx / len) * inhale * 6;
+    const pullY = (-gy / len) * inhale * 6;
 
-    // Blown: accelerate away from the mouth and up, tumbling and swirling.
-    const e = t * t * (1.6 - 0.6 * t);
-    const swirl = Math.sin(t * Math.PI * 1.4 + c.phase) * 26 * t * c.side;
-    const tx = nx * c.travel * e * 0.85 - ny * swirl - nx * pull + shiver;
-    const ty = ny * c.travel * e - 160 * e + nx * swirl - ny * pull;
+    const puff = 1 - Math.pow(1 - t, 2.4); // quick scatter that slows to a float
+    const sway = Math.sin(t * Math.PI * 2 * c.freq + c.phase) * c.sway * (0.25 + t);
+    const tx = dirX * c.travel * puff + sway + pullX + shiver;
+    const ty = dirY * c.travel * puff * 0.75 - c.lift * t + pullY;
+    const tilt = c.tilt * puff + Math.cos(t * Math.PI * 2 * c.freq + c.phase) * 16 * t;
 
     return {
-      opacity: interpolate(t, [0, 0.6, 1], [1, 0.95, 0], Extrapolation.CLAMP),
       transform: [
         { translateX: tx },
         { translateY: ty },
-        { rotate: `${c.rot * e}deg` },
-        { scale: interpolate(t, [0, 0.12, 1], [1, 1.18, 0.6], Extrapolation.CLAMP) },
+        { rotate: `${tilt}deg` },
+        { scale: interpolate(t, [0, 0.1, 1], [1, 1.08, 0.55], Extrapolation.CLAMP) },
       ],
     };
   });
-
-  // A sparkle left in the glyph's wake.
-  const sparkStyle = useAnimatedStyle(() => {
-    const g = progress.value;
-    const gx = ox.value + cx.value - origin.x;
-    const gy = oy.value + cy.value - origin.y;
-    const dist = Math.max(1, Math.sqrt(gx * gx + gy * gy));
-    const start = BLOW.blowStart + Math.min(1, dist / Math.max(1, reach)) * 0.26 + c.j1 * 0.06;
-    const life = (0.26 + c.j2 * 0.12) * 1.3;
-    const t = interpolate(g, [start, start + life], [0, 1], Extrapolation.CLAMP);
-    const e = t * t * 0.75;
+  // The letter thins out first; its tuft lingers a little longer.
+  const glyphStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(flight.value, [0, 0.4, 0.85], [1, 0.85, 0], Extrapolation.CLAMP),
+  }));
+  const tuftStyle = useAnimatedStyle(() => {
+    const t = flight.value;
     return {
-      opacity: interpolate(t, [0, 0.2, 0.55, 1], [0, 0.9, 0.7, 0], Extrapolation.CLAMP),
-      transform: [
-        { translateX: (gx / dist) * c.travel * e * 0.85 },
-        { translateY: (gy / dist) * c.travel * e - 160 * e },
-        { scale: interpolate(t, [0, 0.3, 1], [0.3, 1, 0.4], Extrapolation.CLAMP) },
-      ],
+      opacity: interpolate(t, [0, 0.12, 0.7, 1], [0, 0.95, 0.85, 0], Extrapolation.CLAMP),
+      transform: [{ scale: interpolate(t, [0, 0.2, 1], [0.2, 1, 1.25], Extrapolation.CLAMP) }],
     };
   });
 
-  const s = c.spark;
+  const s = c.tuft;
   return (
     <View onLayout={onLayout}>
-      <Animated.View
-        style={[styles.spark, { width: s * 3, height: s * 3, borderRadius: s * 1.5, marginLeft: -s * 1.5, marginTop: -s * 1.5 }, sparkStyle]}
-      >
-        <View style={{ width: s, height: s, borderRadius: s / 2, backgroundColor: '#FFFFFF' }} />
+      <Animated.View style={seedStyle}>
+        <Animated.Text style={[textStyle, styles.glyph, glyphStyle]} allowFontScaling maxFontSizeMultiplier={1.4}>
+          {text}
+        </Animated.Text>
+        <Animated.View
+          style={[styles.tuft, { width: s * 3.4, height: s * 3.4, borderRadius: s * 1.7, marginLeft: -s * 1.7 }, tuftStyle]}
+          pointerEvents="none"
+        >
+          <View style={[styles.tuftCore, { width: s, height: s, borderRadius: s / 2 }]} />
+        </Animated.View>
       </Animated.View>
-      <Animated.Text style={[textStyle, styles.glyph, glyphStyle]} allowFontScaling maxFontSizeMultiplier={1.4}>
-        {text}
-      </Animated.Text>
     </View>
   );
 }
@@ -266,12 +283,14 @@ const styles = StyleSheet.create({
   word: { flexDirection: 'row', flexWrap: 'wrap', maxWidth: '100%' },
   lineBreak: { width: '100%', height: 0 },
   glyph: { includeFontPadding: false },
-  spark: {
+  // The seed's fluffy parachute, riding just above its letter.
+  tuft: {
     position: 'absolute',
     left: '50%',
-    top: '50%',
+    top: -6,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255, 228, 232, 0.45)',
+    backgroundColor: 'rgba(255, 255, 255, 0.35)',
   },
+  tuftCore: { backgroundColor: '#FFFFFF' },
 });

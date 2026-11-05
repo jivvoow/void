@@ -18,7 +18,7 @@ export type CloudMood = 'rest' | 'calm' | 'building' | 'burst' | 'fade';
  * Seconds of inactivity before auto-fade. `null` = off.
  * `'instant'` = every word scatters the moment it is finished (space / enter).
  */
-export type FadeDelay = 'instant' | 3 | 15 | 30 | 60 | null;
+export type FadeDelay = 'instant' | 3 | 15 | null;
 
 export type AnimationLevel = 'soft' | 'full';
 

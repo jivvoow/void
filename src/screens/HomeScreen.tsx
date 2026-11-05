@@ -67,7 +67,7 @@ const CARD_BOTTOM = 18;
 /** Cloud scale while venting: keyboard hidden / keyboard shown. */
 const CANVAS_SCALE_OPEN = 0.86;
 const CANVAS_SCALE_KBD = 0.62;
-const CHIP_GAP = 44;
+const CHIP_GAP = 58;
 
 /** How much each spark of feeling fills the cloud, by intensity. ~60 calm keystrokes ≈ full. */
 const CHARGE_STEP: Record<Intensity, number> = { calm: 0.016, building: 0.026, burst: 0.04 };
@@ -852,5 +852,5 @@ const styles = StyleSheet.create({
   chipLayer: { position: 'absolute', top: 0, left: 0, right: 0, alignItems: 'center' },
   glyphLayer: { position: 'absolute', top: 0, left: GUTTER, right: GUTTER, bottom: 0, overflow: 'visible' },
   chipCol: { alignItems: 'center' },
-  bubble: { position: 'absolute', bottom: 46, width: 280, alignItems: 'center' },
+  bubble: { position: 'absolute', bottom: 58, width: 280, alignItems: 'center' },
 });
