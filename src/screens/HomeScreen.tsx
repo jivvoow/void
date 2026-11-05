@@ -34,7 +34,6 @@ import { CloudCharacter, CLOUD_ASPECT, CLOUD_MOUTH } from '../components/CloudCh
 import { CANVAS_PADDING, CANVAS_TEXT_STYLE, EmotionTextInput } from '../components/EmotionTextInput';
 import { FadeOverlay } from '../components/FadeOverlay';
 import { GlyphEvaporation } from '../components/GlyphEvaporation';
-import { GulpPops, type GulpPopsHandle } from '../components/GulpPops';
 import { HintBubble } from '../components/HintBubble';
 import { KeyboardDownIcon, SettingsIcon } from '../components/Icons';
 import { IntensityIndicator } from '../components/IntensityIndicator';
@@ -80,8 +79,8 @@ const KICK: Record<Intensity, { lift: number; jitter: number }> = {
 /** Mouth open → swallow delay for each "꿀꺽". */
 const GULP_DELAY_MS = 200;
 const WARMTH: Record<Intensity, number> = { calm: 0.2, building: 0.5, burst: 0.85 };
-/** Minimum gap between "꿀꺽" pop-ups, by intensity (faster venting → more gulping). */
-const GULP_POP_MS: Record<Intensity, number> = { calm: 900, building: 560, burst: 340 };
+/** Minimum gap between gulp sounds, by intensity (faster venting → more gulping). */
+const GULP_SOUND_MS: Record<Intensity, number> = { calm: 900, building: 560, burst: 340 };
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
@@ -213,9 +212,7 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
   const chargeTarget = useRef(0);
   const pulse = useSharedValue(0); // cloud "gulp"
   const gape = useSharedValue(0); // cloud's mouth open, catching sparks
-  const gulpRef = useRef<GulpPopsHandle>(null);
-  const lastPop = useRef(0);
-  const popSide = useRef<-1 | 1>(1);
+  const lastGulpSound = useRef(0);
   const kick = useSharedValue(0); // words hop on each keystroke
   const kickLift = useSharedValue(0);
   const kickX = useSharedValue(0);
@@ -266,12 +263,13 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
     if (now - lastGulp.current < SPARK_THROTTLE_MS) return;
     lastGulp.current = now;
 
-    const s = kbdVisible ? CANVAS_SCALE_KBD : CANVAS_SCALE_OPEN;
     const landing = soft ? 0 : GULP_DELAY_MS;
-    // "아~" — the mouth opens for the feeling, then snaps shut on the swallow.
+    // "아~ 앙, 냠" — the mouth opens for the feeling, snaps shut on it, then a little munch.
     gape.value = withSequence(
       withTiming(1, { duration: 110 }),
       withDelay(Math.max(0, landing - 150), withTiming(0, { duration: 90 })),
+      withTiming(0.4, { duration: 90 }),
+      withTiming(0, { duration: 110 }),
     );
     chargeTarget.current = Math.min(1, chargeTarget.current + CHARGE_STEP[lv]);
     charge.value = withDelay(landing, withTiming(chargeTarget.current, { duration: 260 }));
@@ -281,24 +279,16 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
       withSequence(withTiming(1, { duration: 70 }), withSpring(0, { damping: 5, stiffness: 300, mass: 0.6 })),
     );
 
-    if (now - lastPop.current > GULP_POP_MS[lv]) {
-      lastPop.current = now;
-      popSide.current = popSide.current === 1 ? -1 : 1;
-      const side = popSide.current;
-      const top = mainH.value + 6 - cloudH * s * (1 + chargeTarget.current * 0.24);
-      const at = { x: win.width / 2 + side * cloudW * s * 0.52, y: top + cloudH * s * 0.28 };
-      const label = t.home.gulps[Math.floor(Math.random() * t.home.gulps.length)];
-      setTimeout(() => {
-        sfx.gulp();
-        if (!soft) gulpRef.current?.pop(at, label, side);
-      }, landing);
+    if (now - lastGulpSound.current > GULP_SOUND_MS[lv]) {
+      lastGulpSound.current = now;
+      setTimeout(sfx.gulp, landing);
     }
 
     if (lv === 'burst' && now - lastGulpHaptic.current > 220) {
       lastGulpHaptic.current = now;
       setTimeout(haptics.light, landing);
     }
-  }, [recordInput, soft, kickLift, kickX, kick, kbdVisible, mainH, cloudH, cloudW, win.width, charge, pulse, gape, haptics, t, sfx]);
+  }, [recordInput, soft, kickLift, kickX, kick, charge, pulse, gape, haptics, sfx]);
 
   /**
    * "즉시" mode: once every glyph has melted (a short pause), quietly empty the native input
@@ -913,7 +903,6 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
             )}
 
             {/* Sparks of feeling flying from the words into the cloud */}
-            <GulpPops ref={gulpRef} />
 
             {/* "훌훌 날리기" chip above the cloud + one-time hint */}
             {canRelease && (
