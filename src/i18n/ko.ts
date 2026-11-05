@@ -66,7 +66,7 @@ export const ko = {
     haptics: '진동',
     hapticsCaption: '감정이 차오를 때와 글이 사라질 때 살짝 울려요.',
     sound: '효과음',
-    soundCaption: '다음 업데이트에서 추가될 예정이에요.',
+    soundCaption: '꿀꺽, 후우~ 같은 작은 효과음이 나요. 무음 모드에서는 울리지 않아요.',
     animation: '애니메이션 강도',
     animationSoft: '은은하게',
     animationFull: '풍성하게',

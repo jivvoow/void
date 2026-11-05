@@ -58,6 +58,7 @@ import { useStrings } from '../i18n';
 import { useSettings } from '../state/SettingsContext';
 import type { CloudMood, FadeDelay, Intensity, VentPhase } from '../types';
 import { useHaptics } from '../utils/haptics';
+import { useSoundFx } from '../utils/sound';
 
 const GUTTER = 20;
 const HEADER_H = 56;
@@ -101,6 +102,7 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
   const t = useStrings();
   const { settings, update } = useSettings();
   const haptics = useHaptics();
+  const sfx = useSoundFx();
   const insets = useSafeAreaInsets();
   const win = useWindowDimensions();
   const soft = settings.animationLevel === 'soft';
@@ -260,21 +262,24 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
       withSequence(withTiming(1, { duration: 70 }), withSpring(0, { damping: 5, stiffness: 300, mass: 0.6 })),
     );
 
-    if (!soft && now - lastPop.current > GULP_POP_MS[lv]) {
+    if (now - lastPop.current > GULP_POP_MS[lv]) {
       lastPop.current = now;
       popSide.current = popSide.current === 1 ? -1 : 1;
       const side = popSide.current;
       const top = mainH.value + 6 - cloudH * s * (1 + chargeTarget.current * 0.24);
       const at = { x: win.width / 2 + side * cloudW * s * 0.52, y: top + cloudH * s * 0.28 };
       const label = t.home.gulps[Math.floor(Math.random() * t.home.gulps.length)];
-      setTimeout(() => gulpRef.current?.pop(at, label, side), landing);
+      setTimeout(() => {
+        sfx.gulp();
+        if (!soft) gulpRef.current?.pop(at, label, side);
+      }, landing);
     }
 
     if (lv === 'burst' && now - lastGulpHaptic.current > 220) {
       lastGulpHaptic.current = now;
       setTimeout(haptics.light, landing);
     }
-  }, [recordInput, soft, kickLift, kickX, kick, kbdVisible, mainH, cloudH, cloudW, win.width, charge, pulse, gape, haptics, t]);
+  }, [recordInput, soft, kickLift, kickX, kick, kbdVisible, mainH, cloudH, cloudW, win.width, charge, pulse, gape, haptics, t, sfx]);
 
   /**
    * "즉시" mode: once every glyph has melted (a short pause), quietly empty the native input
@@ -287,10 +292,11 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
     scrollY.current = 0;
     trailRef.current?.reset();
     setHasText(false);
+    sfx.puff();
     pulse.value = withSequence(withTiming(1, { duration: 80 }), withTiming(0, { duration: 320 }));
     chargeTarget.current = chargeTarget.current * 0.6;
     charge.value = withTiming(chargeTarget.current, { duration: 700 });
-  }, [pulse, charge]);
+  }, [pulse, charge, sfx]);
 
   /* ───────── fade lifecycle ───────── */
   const finishFade = useCallback(() => {
@@ -303,11 +309,12 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
     setInputKey((k) => k + 1); // remount → native buffer released
     setPhase('clear');
     haptics.done();
+    sfx.clear();
     if (clearTimer.current) clearTimeout(clearTimer.current);
     clearTimer.current = setTimeout(() => {
       if (phaseRef.current === 'clear') setPhase('rest');
     }, CLEAR_MESSAGE_MS);
-  }, [haptics, setPhase]);
+  }, [haptics, setPhase, sfx]);
 
   const startFade = useCallback(() => {
     if (phaseRef.current === 'fade') return; // no double triggers
@@ -348,12 +355,14 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
     charge.value = withDelay(duration * BLOW.blowStart, withTiming(0, { duration: duration * 0.45 }));
     gape.value = 0;
     if (!soft) setTimeout(haptics.medium, duration * BLOW.blowStart); // the "후우~" itself
+    setTimeout(sfx.blow, duration * BLOW.inhaleEnd);
+    setTimeout(sfx.seeds, duration * (BLOW.blowStart + 0.08));
 
     fadeProgress.value = 0;
     fadeProgress.value = withTiming(1, { duration, easing: Easing.linear }, (finished) => {
       if (finished) scheduleOnRN(finishFade);
     });
-  }, [cloudH, fadeProgress, finishFade, haptics, setPhase, soft, win.width, resetIntensity, charge, gape]);
+  }, [cloudH, fadeProgress, finishFade, haptics, setPhase, soft, win.width, resetIntensity, charge, gape, sfx]);
 
   const delayMs =
     settings.fadeDelay == null ? null : settings.fadeDelay === 'instant' ? TRAIL_LIFE_MS + 250 : settings.fadeDelay * 1000;

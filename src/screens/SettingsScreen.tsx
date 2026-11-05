@@ -53,7 +53,7 @@ export function SettingsScreen({ onClose, onReplayGuide }: { onClose: () => void
             onChange={(v) => update({ haptics: v })}
           />
           <Divider />
-          <ToggleRow label={t.sound} caption={t.soundCaption} value={settings.sound} onChange={(v) => update({ sound: v })} disabled />
+          <ToggleRow label={t.sound} caption={t.soundCaption} value={settings.sound} onChange={(v) => update({ sound: v })} />
           <Divider />
           <View style={styles.rowStack}>
             <Text style={styles.rowLabel}>{t.animation}</Text>

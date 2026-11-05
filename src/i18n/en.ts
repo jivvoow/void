@@ -17,7 +17,7 @@ export const en: Strings = {
       s == null
         ? 'Auto-fade off. Tap to change'
         : s === 'instant'
-          ? 'Each word vanishes as soon as you finish it. Tap to change'
+          ? 'Letters melt away one by one as you type. Tap to change'
           : `Fades ${s} seconds after you stop. Tap to change`,
     restHint: 'The faster you pour it out, the more the cloud gulps',
     gulps: ['gulp', 'nom', 'gulp gulp', 'nom nom', 'gulp!'],
@@ -56,7 +56,7 @@ export const en: Strings = {
     haptics: 'Haptics',
     hapticsCaption: 'Gentle taps as feelings build and when words fade.',
     sound: 'Sound',
-    soundCaption: 'Coming in a future update.',
+    soundCaption: 'Little gulps and whooshes. Silent when your phone is on silent.',
     animation: 'Animation',
     animationSoft: 'Soft',
     animationFull: 'Full',

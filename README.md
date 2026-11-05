@@ -24,7 +24,7 @@ npm run typecheck       # TypeScript 검사
 | Reanimated 애니메이션, SVG, 햅틱 | ✅ | |
 | 앱 전환 화면 보호 (iOS 블러, Android FLAG_SECURE) | ✅ (Expo Go 자체 설정과 섞일 수 있음) | 정확한 확인은 개발 빌드 권장 |
 | 앱 이름 "훌훌"·아이콘·스플래시 | ❌ (Expo Go 아이콘으로 표시) | ✅ `npx expo run:android` / `eas build --profile development` |
-| 효과음 (Phase 2+ 예정) | `expo-audio` 추가 시 Expo Go 가능 | |
+| 효과음 (`expo-audio`, 앱 안에 내장된 자체 합성음) | ✅ | 무음 모드에서는 울리지 않음. 소리 파일은 `scripts/gen_sounds.py`로 다시 만들 수 있음 |
 
 ## 구조
 

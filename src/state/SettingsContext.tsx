@@ -9,12 +9,14 @@ import type { Settings } from '../types';
  * Only PREFERENCES are persisted here (timer, haptics, …) plus the "guide seen" flag.
  * The user's text is never stored anywhere — it does not pass through this module.
  */
-const STORAGE_KEY = 'void.settings.v1';
+const STORAGE_KEY = 'void.settings.v2';
+/** v1 stored `sound: false` while the toggle was still disabled — re-default it on upgrade. */
+const LEGACY_KEY = 'void.settings.v1';
 
 const DEFAULT_SETTINGS: Settings = {
   fadeDelay: DEFAULT_FADE_DELAY,
   haptics: true,
-  sound: false,
+  sound: true,
   animationLevel: 'full',
   locale: 'ko',
   guideVersion: 0,
@@ -50,7 +52,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY)
       .then(async (json) => {
-        const raw = json ? (JSON.parse(json) as Record<string, unknown>) : null;
+        let raw = json ? (JSON.parse(json) as Record<string, unknown>) : null;
+        if (!raw) {
+          const legacy = await AsyncStorage.getItem(LEGACY_KEY).catch(() => null);
+          if (legacy) raw = { ...(JSON.parse(legacy) as Record<string, unknown>), sound: true };
+        }
         const s = sanitize(raw);
         if (!raw || (raw.animationLevel !== 'soft' && raw.animationLevel !== 'full')) {
           const reduced = await AccessibilityInfo.isReduceMotionEnabled().catch(() => false);
