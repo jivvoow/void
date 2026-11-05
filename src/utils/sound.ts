@@ -10,6 +10,7 @@ const SRC = {
   seeds: require('../../assets/sounds/seeds.wav'),
   clear: require('../../assets/sounds/clear.wav'),
   puff: require('../../assets/sounds/puff.wav'),
+  rip: require('../../assets/sounds/rip.wav'),
 };
 
 let modeSet = false;
@@ -28,6 +29,7 @@ export function useSoundFx() {
   const seeds = useAudioPlayer(SRC.seeds);
   const clear = useAudioPlayer(SRC.clear);
   const puff = useAudioPlayer(SRC.puff);
+  const rip = useAudioPlayer(SRC.rip);
 
   useEffect(() => {
     if (modeSet) return;
@@ -41,7 +43,8 @@ export function useSoundFx() {
     seeds.volume = 0.55;
     clear.volume = 0.5;
     puff.volume = 0.5;
-  }, [gulp, blow, seeds, clear, puff]);
+    rip.volume = 0.7;
+  }, [gulp, blow, seeds, clear, puff, rip]);
 
   const play = useCallback((p: AudioPlayer) => {
     if (!on.current) return;
@@ -60,7 +63,8 @@ export function useSoundFx() {
       seeds: () => play(seeds),
       clear: () => play(clear),
       puff: () => play(puff),
+      rip: () => play(rip),
     }),
-    [play, gulp, blow, seeds, clear, puff],
+    [play, gulp, blow, seeds, clear, puff, rip],
   );
 }

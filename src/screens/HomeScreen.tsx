@@ -42,6 +42,7 @@ import { ReleaseButton } from '../components/ReleaseButton';
 import { RippleRings } from '../components/RippleRings';
 import { SkyBackground } from '../components/SkyBackground';
 import { StatusPill, type PillKind } from '../components/StatusPill';
+import { MAX_CUTS_PER_AXIS, MIN_CUT_GAP, TearPaper, type Cuts } from '../components/TearPaper';
 import { TimerPicker } from '../components/TimerPicker';
 import { TrailingText, TRAIL_LIFE_MS, type TrailingTextHandle } from '../components/TrailingText';
 import {
@@ -126,6 +127,20 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
   const [particles, setParticles] = useState<ParticleSpec[]>([]);
   // Where the release wind comes from (the cloud's mouth) in the text overlay's coordinates.
   const [blowGeo, setBlowGeo] = useState({ origin: { x: 0, y: 0 }, reach: 300 });
+  // "찢어서 홀씨": the paper being torn (only exists during a release in that style).
+  const [tear, setTearState] = useState<{ interactive: boolean; cuts: Cuts; paperH: number; seed: number } | null>(null);
+  const tearRef = useRef(tear);
+  const setTear = useCallback((v: typeof tear) => {
+    tearRef.current = v;
+    setTearState(v);
+  }, []);
+  const tearTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const clearTearTimers = () => {
+    tearTimers.current.forEach(clearTimeout);
+    tearTimers.current = [];
+  };
+  const releaseStyleRef = useRef(settings.releaseStyle);
+  releaseStyleRef.current = settings.releaseStyle;
   const inputRef = useRef<TextInputInstance>(null);
   const clearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fadeSeed = useRef(1);
@@ -304,6 +319,8 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
     contentH.current = 0;
     scrollY.current = 0;
     setFadeText(null); // drop the snapshot
+    clearTearTimers();
+    setTear(null);
     setHasText(false);
     setParticles([]);
     setInputKey((k) => k + 1); // remount → native buffer released
@@ -314,55 +331,153 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
     clearTimer.current = setTimeout(() => {
       if (phaseRef.current === 'clear') setPhase('rest');
     }, CLEAR_MESSAGE_MS);
-  }, [haptics, setPhase, sfx]);
+  }, [haptics, setPhase, sfx, setTear]);
 
-  const startFade = useCallback(() => {
-    if (phaseRef.current === 'fade') return; // no double triggers
-    if (!textRef.current) {
-      setPhase('rest');
-      return;
-    }
-    setFadeText(textRef.current);
-    setPhase('fade');
-    inputRef.current?.blur();
-    Keyboard.dismiss();
-    haptics.soft();
-    resetIntensity();
-
-    // The cloud's "후우": a ribbon of sparkles from its mouth, aimed at the keyboard-down layout.
+  /** Keyboard-down layout of the canvas and the cloud's mouth (main-area coords). */
+  const releaseLayout = useCallback(() => {
     const H = fullMainH.current;
     const sCloud = CANVAS_SCALE_OPEN;
     const canvasH = Math.max(140, H - cloudH * sCloud * 0.92 - 4);
-    const textH = clamp((contentH.current || 80) - scrollY.current, 60, canvasH - 40);
     const mouth = { x: win.width / 2, y: H + 6 - cloudH * sCloud * (1 - CLOUD_MOUTH.y) };
-    fadeSeed.current = (fadeSeed.current * 9301 + 49297) % 233280;
-    setParticles(
-      soft
-        ? []
-        : buildParticles(
-            fadeSeed.current,
-            { x: GUTTER + 12, y: 8, width: win.width - GUTTER * 2 - 24, height: textH },
-            mouth,
-            { breath: 22, gust: 14 },
-          ),
-    );
-    // Text overlay coords: left edge of the canvas, and content (not screen) y → add the scroll.
-    setBlowGeo({ origin: { x: mouth.x - GUTTER, y: mouth.y + scrollY.current }, reach: Math.max(160, textH + 60) });
+    return { canvasH, mouth };
+  }, [cloudH, win.width]);
 
-    const duration = soft ? 1400 : FADE_DURATION_MS;
-    // Everything it swallowed goes out with the breath.
-    chargeTarget.current = 0;
-    charge.value = withDelay(duration * BLOW.blowStart, withTiming(0, { duration: duration * 0.45 }));
-    gape.value = 0;
-    if (!soft) setTimeout(haptics.medium, duration * BLOW.blowStart); // the "후우~" itself
-    setTimeout(sfx.blow, duration * BLOW.inhaleEnd);
-    setTimeout(sfx.seeds, duration * (BLOW.blowStart + 0.08));
+  /**
+   * The cloud's "후우~" over `area` (main coords), carrying away whatever is drawn there.
+   * `origin` is the mouth in the flying layer's own coordinates.
+   */
+  const runBlow = useCallback(
+    (area: { y: number; height: number }, origin: { x: number; y: number }) => {
+      const { mouth } = releaseLayout();
+      fadeSeed.current = (fadeSeed.current * 9301 + 49297) % 233280;
+      setParticles(
+        soft
+          ? []
+          : buildParticles(
+              fadeSeed.current,
+              { x: GUTTER + 12, y: area.y, width: win.width - GUTTER * 2 - 24, height: area.height },
+              mouth,
+              { breath: 22, gust: 14 },
+            ),
+      );
+      setBlowGeo({ origin, reach: Math.max(160, area.height + 60) });
 
-    fadeProgress.value = 0;
-    fadeProgress.value = withTiming(1, { duration, easing: Easing.linear }, (finished) => {
-      if (finished) scheduleOnRN(finishFade);
-    });
-  }, [cloudH, fadeProgress, finishFade, haptics, setPhase, soft, win.width, resetIntensity, charge, gape, sfx]);
+      const duration = soft ? 1400 : FADE_DURATION_MS;
+      // Everything it swallowed goes out with the breath.
+      chargeTarget.current = 0;
+      charge.value = withDelay(duration * BLOW.blowStart, withTiming(0, { duration: duration * 0.45 }));
+      gape.value = 0;
+      if (!soft) setTimeout(haptics.medium, duration * BLOW.blowStart); // the "후우~" itself
+      setTimeout(sfx.blow, duration * BLOW.inhaleEnd);
+      setTimeout(sfx.seeds, duration * (BLOW.blowStart + 0.08));
+
+      fadeProgress.value = 0;
+      fadeProgress.value = withTiming(1, { duration, easing: Easing.linear }, (finished) => {
+        if (finished) scheduleOnRN(finishFade);
+      });
+    },
+    [releaseLayout, soft, win.width, charge, gape, haptics, sfx, fadeProgress, finishFade],
+  );
+
+  /* ───────── "찢어서 홀씨" ───────── */
+  const paperW = win.width - GUTTER * 2;
+  const PAPER_TOP = 12;
+
+  const blowTear = useCallback(() => {
+    const cur = tearRef.current;
+    if (!cur || !cur.interactive) return;
+    clearTearTimers();
+    setTear({ ...cur, interactive: false });
+    const { mouth } = releaseLayout();
+    // The paper layer sits at the canvas' left edge, top of the main area.
+    runBlow({ y: PAPER_TOP, height: cur.paperH }, { x: mouth.x - GUTTER, y: mouth.y });
+  }, [releaseLayout, runBlow, setTear]);
+
+  const addCut = useCallback(
+    (dir: 'v' | 'h', pos: number) => {
+      const cur = tearRef.current;
+      if (!cur || !cur.interactive) return false;
+      const size = dir === 'v' ? paperW : cur.paperH;
+      const list = dir === 'v' ? cur.cuts.v : cur.cuts.h;
+      const ok =
+        list.length < MAX_CUTS_PER_AXIS &&
+        pos > MIN_CUT_GAP &&
+        pos < size - MIN_CUT_GAP &&
+        list.every((c) => Math.abs(c - pos) > MIN_CUT_GAP);
+      if (!ok) return false;
+      const cuts = dir === 'v' ? { ...cur.cuts, v: [...cur.cuts.v, pos] } : { ...cur.cuts, h: [...cur.cuts.h, pos] };
+      setTear({ ...cur, cuts });
+      haptics.medium();
+      sfx.rip();
+      // Keep tearing, or the cloud blows once you pause (sooner when it's in tatters).
+      clearTearTimers();
+      const full = cuts.v.length + cuts.h.length >= MAX_CUTS_PER_AXIS * 2;
+      tearTimers.current.push(setTimeout(blowTear, full ? 550 : 1700));
+      return true;
+    },
+    [paperW, setTear, haptics, sfx, blowTear],
+  );
+
+  /** Tear it for the user (timer expiry, a tap without swiping, or no swipe for a while). */
+  const autoTear = useCallback(() => {
+    const cur = tearRef.current;
+    if (!cur || !cur.interactive) return;
+    clearTearTimers();
+    const need = cur.cuts.v.length + cur.cuts.h.length === 0;
+    if (need) {
+      tearTimers.current.push(
+        setTimeout(() => addCut('v', paperW * (0.38 + Math.random() * 0.24)), 160),
+        setTimeout(() => {
+          const t2 = tearRef.current;
+          if (t2 && t2.paperH > 120) addCut('h', t2.paperH * (0.4 + Math.random() * 0.2));
+        }, 430),
+      );
+    }
+    tearTimers.current.push(setTimeout(blowTear, need ? 950 : 150));
+  }, [addCut, blowTear, paperW]);
+
+  const onPaperTap = useCallback(() => {
+    const cur = tearRef.current;
+    if (!cur || !cur.interactive) return;
+    if (cur.cuts.v.length + cur.cuts.h.length === 0) autoTear();
+    else blowTear();
+  }, [autoTear, blowTear]);
+
+  /**
+   * Release the words. `byHand` = the user pressed "훌훌 날리기" / held the cloud: in the tear
+   * style they then get to rip the paper themselves; a timer release tears it automatically.
+   */
+  const startFade = useCallback(
+    (byHand = false) => {
+      if (phaseRef.current === 'fade') return; // no double triggers
+      if (!textRef.current) {
+        setPhase('rest');
+        return;
+      }
+      setFadeText(textRef.current);
+      setPhase('fade');
+      inputRef.current?.blur();
+      Keyboard.dismiss();
+      haptics.soft();
+      resetIntensity();
+
+      const { canvasH, mouth } = releaseLayout();
+      if (releaseStyleRef.current === 'tear') {
+        const paperH = clamp((contentH.current || 80) * 0.82 + 40, 150, canvasH - 80);
+        fadeSeed.current = (fadeSeed.current * 9301 + 49297) % 233280;
+        setTear({ interactive: true, cuts: { v: [], h: [] }, paperH, seed: fadeSeed.current });
+        clearTearTimers();
+        if (byHand) tearTimers.current.push(setTimeout(() => autoTear(), 7000));
+        else tearTimers.current.push(setTimeout(() => autoTear(), 350));
+        return;
+      }
+
+      const textH = clamp((contentH.current || 80) - scrollY.current, 60, canvasH - 40);
+      // Text overlay coords: left edge of the canvas, and content (not screen) y → add the scroll.
+      runBlow({ y: 8, height: textH }, { x: mouth.x - GUTTER, y: mouth.y + scrollY.current });
+    },
+    [haptics, setPhase, resetIntensity, releaseLayout, setTear, autoTear, runBlow],
+  );
 
   const delayMs =
     settings.fadeDelay == null ? null : settings.fadeDelay === 'instant' ? TRAIL_LIFE_MS + 250 : settings.fadeDelay * 1000;
@@ -373,7 +488,7 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
       setGraceMs(remaining);
       setPhase('grace');
     },
-    onExpire: () => (instantRef.current ? quietClear() : startFade()),
+    onExpire: () => (instantRef.current ? quietClear() : startFade(false)),
     grace: !instant,
   });
 
@@ -493,7 +608,7 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
   const { hold, onPressIn, onPressOut } = useHoldToRelease({
     disabled: !canRelease,
     onHoldStart: haptics.tick,
-    onRelease: startFade,
+    onRelease: () => startFade(true),
     onShortTap: () => {
       flashReleaseHint();
       pulse.value = withSequence(withTiming(1, { duration: 80 }), withTiming(0, { duration: 300 }));
@@ -567,8 +682,11 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
   }));
 
   /* ───────── derived UI ───────── */
+  const tearing = phase === 'fade' && tear?.interactive === true;
   const mood: CloudMood =
-    phase === 'fade'
+    tearing
+      ? 'building' // eager: "찢어, 찢어!"
+      : phase === 'fade'
       ? 'fade'
       : phase === 'grace'
         ? 'calm'
@@ -580,6 +698,7 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
 
   const delay = settings.fadeDelay;
   const pill = useMemo((): { kind: PillKind; label: string } => {
+    if (tearing) return { kind: 'fade', label: t.home.pillTear };
     if (phase === 'fade') return { kind: 'fade', label: t.home.pillFade };
     if (phase === 'grace') return { kind: 'grace', label: t.home.pillGrace };
     if (venting) {
@@ -589,7 +708,7 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
     }
     // Rest: the auto-fade time is always visible (and tappable) at the top.
     return { kind: 'timer', label: t.home.timerChip(delay) };
-  }, [phase, venting, delay, t]);
+  }, [phase, venting, delay, t, tearing]);
   const pillOpensPicker = pill.kind === 'timer' || pill.kind === 'vent' || pill.kind === 'paused';
 
   const fadeSeedForGlyphs = fadeSeed.current;
@@ -696,7 +815,7 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
                 accessibilityLabel={t.home.a11yCloud}
                 accessibilityActions={canRelease ? [{ name: 'activate' }] : undefined}
                 onAccessibilityAction={(e) => {
-                  if (e.nativeEvent.actionName === 'activate' && canRelease) startFade();
+                  if (e.nativeEvent.actionName === 'activate' && canRelease) startFade(true);
                 }}
               >
                 <CloudCharacter
@@ -739,7 +858,27 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
             </Animated.View>
 
             {/* The words, blown off by the cloud's breath (unclipped: they fly off-screen) */}
-            {fadeText != null && (
+            {fadeText != null && tear && (
+              <View style={styles.glyphLayer} pointerEvents="box-none">
+                <TearPaper
+                  text={fadeText}
+                  width={paperW}
+                  height={tear.paperH}
+                  top={PAPER_TOP}
+                  cuts={tear.cuts}
+                  interactive={tear.interactive}
+                  onCut={addCut}
+                  onTap={onPaperTap}
+                  progress={fadeProgress}
+                  origin={blowGeo.origin}
+                  gentle={soft}
+                  seed={tear.seed}
+                  hint={tear.cuts.v.length + tear.cuts.h.length > 0 ? t.home.tearHintMore : t.home.tearHint}
+                  a11yLabel={t.home.a11yPaper}
+                />
+              </View>
+            )}
+            {fadeText != null && !tear && (
               <View style={styles.glyphLayer} pointerEvents="none">
                 <GlyphEvaporation
                   text={fadeText}
@@ -774,7 +913,7 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
                     soft={soft}
                     onRelease={() => {
                       haptics.tick();
-                      startFade();
+                      startFade(true);
                     }}
                   />
                 </Animated.View>

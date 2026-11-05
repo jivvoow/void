@@ -9,7 +9,7 @@ import { FADE_DELAY_OPTIONS } from '../constants/config';
 import { fonts, palette, radius, space } from '../constants/theme';
 import { useStrings } from '../i18n';
 import { useSettings } from '../state/SettingsContext';
-import type { AnimationLevel, FadeDelay, Locale } from '../types';
+import type { AnimationLevel, FadeDelay, Locale, ReleaseStyle } from '../types';
 
 /** A deliberately short settings sheet. No dashboards, no stats. */
 export function SettingsScreen({ onClose, onReplayGuide }: { onClose: () => void; onReplayGuide: () => void }) {
@@ -42,6 +42,17 @@ export function SettingsScreen({ onClose, onReplayGuide }: { onClose: () => void
             options={FADE_DELAY_OPTIONS.map((v) => ({ value: v, label: t.fadeOption(v) }))}
             value={settings.fadeDelay}
             onChange={(v) => update({ fadeDelay: v })}
+          />
+        </Section>
+
+        <Section title={t.releaseStyle} caption={t.releaseCaption}>
+          <Segmented<ReleaseStyle>
+            options={[
+              { value: 'seeds', label: t.releaseSeeds },
+              { value: 'tear', label: t.releaseTear },
+            ]}
+            value={settings.releaseStyle}
+            onChange={(v) => update({ releaseStyle: v })}
           />
         </Section>
 

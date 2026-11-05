@@ -22,6 +22,9 @@ export type FadeDelay = 'instant' | 3 | 15 | null;
 
 export type AnimationLevel = 'soft' | 'full';
 
+/** How the words leave: blown off as seeds, or torn up as paper first. */
+export type ReleaseStyle = 'seeds' | 'tear';
+
 export type Locale = 'ko' | 'en';
 
 export interface Settings {
@@ -29,6 +32,7 @@ export interface Settings {
   haptics: boolean;
   sound: boolean;
   animationLevel: AnimationLevel;
+  releaseStyle: ReleaseStyle;
   locale: Locale;
   /** Version of the first-run guide the user has finished (or skipped). 0 = never. */
   guideVersion: number;

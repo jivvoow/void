@@ -18,6 +18,7 @@ const DEFAULT_SETTINGS: Settings = {
   haptics: true,
   sound: true,
   animationLevel: 'full',
+  releaseStyle: 'seeds',
   locale: 'ko',
   guideVersion: 0,
 };
@@ -32,6 +33,7 @@ function sanitize(raw: unknown): Settings {
   if (typeof r.sound === 'boolean') s.sound = r.sound;
   if (r.animationLevel === 'soft' || r.animationLevel === 'full') s.animationLevel = r.animationLevel;
   if (r.locale === 'ko' || r.locale === 'en') s.locale = r.locale;
+  if (r.releaseStyle === 'seeds' || r.releaseStyle === 'tear') s.releaseStyle = r.releaseStyle;
   if (typeof r.guideVersion === 'number') s.guideVersion = r.guideVersion;
   return s;
 }

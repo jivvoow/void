@@ -118,11 +118,35 @@ def puff():
     return out
 
 
+# rip — paper tearing: a dense run of tiny fibre snaps riding a brief papery hiss.
+def rip():
+    dur = 0.34
+    n = int(dur * SR)
+    out = [0.0] * n
+    hiss = [random.uniform(-1, 1) for _ in range(n)]
+    hp, prev = [], 0.0
+    for x in hiss:  # crude high-pass → papery
+        hp.append(x - prev * 0.6)
+        prev = x
+    for i in range(n):
+        t = i / n
+        e = min(1, t / 0.05) * (1 - t) ** 1.3
+        out[i] = 0.35 * hp[i] * e
+    snaps = int(70 + random.random() * 20)
+    for _ in range(snaps):
+        c = int(random.betavariate(1.6, 2.2) * (n - 200))
+        amp = random.uniform(0.3, 1.0)
+        for j in range(random.randint(25, 90)):
+            out[c + j] += amp * random.uniform(-1, 1) * math.exp(-j / 18)
+    return out
+
+
 write('gulp.wav', gulp(), 0.7)
 write('blow.wav', blow(), 0.75)
 write('seeds.wav', seeds(), 0.55)
 write('clear.wav', clear(), 0.5)
 write('puff.wav', puff(), 0.5)
+write('rip.wav', rip(), 0.6)
 for f in sorted(os.listdir(OUT)):
     print(f, os.path.getsize(os.path.join(OUT, f)))
 
