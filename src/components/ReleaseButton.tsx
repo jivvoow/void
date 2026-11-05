@@ -14,6 +14,8 @@ import Animated, {
 import { fonts, radius } from '../constants/theme';
 import { FeatherIcon } from './Icons';
 
+const ROSE = '#A8687E';
+
 interface Props {
   label: string;
   a11yLabel: string;
@@ -61,13 +63,13 @@ function ReleaseButtonBase({ label, a11yLabel, hold, onRelease, soft: reduced = 
         <View style={styles.shadow}>
           <View style={styles.button}>
             <LinearGradient
-              colors={['#F2A3B3', '#F6BFAE', '#F9D5BE']}
+              colors={['#F9D3DA', '#FBE0D6', '#FDEDE3']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={StyleSheet.absoluteFill}
             />
             <Animated.View style={[styles.fill, fillStyle]} />
-            <FeatherIcon />
+            <FeatherIcon color={ROSE} />
             <Text style={styles.label} maxFontSizeMultiplier={1.3}>
               {label}
             </Text>
@@ -90,13 +92,13 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     borderRadius: radius.pill,
-    backgroundColor: 'rgba(255, 196, 206, 0.7)',
+    backgroundColor: 'rgba(255, 214, 222, 0.6)',
   },
   shadow: {
     borderRadius: radius.pill,
-    backgroundColor: '#F6BFAE', // Android elevation needs a solid surface to cast from
+    backgroundColor: '#FBE0D6', // Android elevation needs a solid surface to cast from
     ...Platform.select({
-      ios: { shadowColor: '#C9708A', shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
+      ios: { shadowColor: '#C9708A', shadowOpacity: 0.22, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
       default: { elevation: 6 },
     }),
   },
@@ -123,10 +125,8 @@ const styles = StyleSheet.create({
   label: {
     fontFamily: fonts.handBold,
     fontSize: 21,
-    color: '#FFFFFF',
+    // Dusky rose on the pale pill — keeps the label readable now that the pill is lighter.
+    color: ROSE,
     includeFontPadding: false,
-    textShadowColor: 'rgba(180, 90, 110, 0.45)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
   },
 });

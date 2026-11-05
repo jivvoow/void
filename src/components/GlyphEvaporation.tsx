@@ -64,8 +64,8 @@ function GlyphEvaporationBase({ text, progress, textStyle, padding, scrollY, see
     return Array.from({ length: count }, (): Choreo => ({
       j1: rnd(),
       j2: rnd(),
-      travel: (210 + rnd() * 300) * k,
-      lift: (120 + rnd() * 160) * k,
+      travel: (280 + rnd() * 360) * k,
+      lift: (180 + rnd() * 200) * k,
       fan: (rnd() - 0.5) * 1.9, // ±55° around "away from the mouth"
       sway: (12 + rnd() * 20) * k,
       freq: 0.7 + rnd() * 0.9,
@@ -162,8 +162,8 @@ function Piece({
     const gx = ox.value + cx.value - origin.x;
     const gy = oy.value + cy.value - origin.y;
     const dist = Math.max(1, Math.sqrt(gx * gx + gy * gy));
-    const start = Math.min(0.8, BLOW.blowStart + Math.min(1, dist / Math.max(1, reach)) * 0.2 + c.j1 * 0.12);
-    const life = Math.max(0.12, Math.min(0.42 + c.j2 * 0.16, 0.995 - start));
+    const start = Math.min(0.8, BLOW.blowStart + Math.min(1, dist / Math.max(1, reach)) * 0.1 + c.j1 * 0.06);
+    const life = Math.max(0.12, Math.min(0.3 + c.j2 * 0.1, 0.995 - start));
     return interpolate(progress.value, [start, start + life], [0, 1], Extrapolation.CLAMP);
   });
 
@@ -185,7 +185,7 @@ function Piece({
     const pullX = (-gx / len) * inhale * 6;
     const pullY = (-gy / len) * inhale * 6;
 
-    const puff = 1 - Math.pow(1 - t, 2.4); // quick scatter that slows to a float
+    const puff = 1 - Math.pow(1 - t, 3); // quick scatter that slows to a float
     const sway = Math.sin(t * Math.PI * 2 * c.freq + c.phase) * c.sway * (0.25 + t);
     const tx = dirX * c.travel * puff + sway + pullX + shiver;
     const ty = dirY * c.travel * puff * 0.75 - c.lift * t + pullY;
