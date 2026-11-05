@@ -1,13 +1,21 @@
 import { Easing } from 'react-native-reanimated';
 
 /**
- * Evaporation choreography. One shared `progress` (0 → 1 over FADE_DURATION_MS)
- * drives the text, the cloud's breath and every particle, so all of it stays in sync
- * and runs on the UI thread.
+ * Release choreography ("후우~"). One shared `progress` (0 → 1 over FADE_DURATION_MS)
+ * drives the cloud's body + face, the wind, and every flying glyph, so all of it stays in
+ * sync and runs on the UI thread.
  *
- * The words themselves dissolve glyph-by-glyph in components/GlyphEvaporation.tsx;
- * this module builds the cloud's breath ribbon.
+ *   0 ──── INHALE ──── 0.2 ─ 0.25 ──────── BLOW ──────── 0.74 ──── RELIEF ──── 1
+ *   cloud puffs up,        squashes, pursed "O" mouth,        deflates, smiles
+ *   words tremble          gusts stream up, words get
+ *   (slightly sucked in)   blown off the top of the screen
  */
+export const BLOW = {
+  inhaleEnd: 0.2,
+  blowStart: 0.25,
+  blowEnd: 0.74,
+} as const;
+
 export const fadeEasing = Easing.bezier(0.33, 0, 0.2, 1);
 
 export interface Point {
@@ -15,7 +23,8 @@ export interface Point {
   y: number;
 }
 
-export type ParticleKind = 'dust' | 'breath';
+/** breath = small sparkles riding the wind · gust = elongated wind streaks */
+export type ParticleKind = 'breath' | 'gust';
 
 export interface ParticleSpec {
   kind: ParticleKind;
@@ -26,13 +35,14 @@ export interface ParticleSpec {
   /** Fraction of the total progress at which this particle starts / ends. */
   start: number;
   end: number;
+  /** Sparkle diameter, or streak length for gusts. */
   size: number;
   color: string;
 }
 
 const SPARKLE_COLORS = ['#FFFFFF', '#FFF3E6', '#FBD9DC', '#F7DCCB', '#EDE3F7'];
 
-/** Small deterministic PRNG so a fade's particle layout is stable across renders. */
+/** Small deterministic PRNG so a fade's layout is stable across renders. */
 export function mulberry32(seed: number) {
   let a = seed >>> 0;
   return () => {
@@ -45,56 +55,55 @@ export function mulberry32(seed: number) {
 }
 
 /**
- * dust   — sparkles shed from the words, drifting up and outward.
- * breath — the cloud's "후우": a curling ribbon of sparkles from its mouth up through the text.
+ * The cloud's breath: a fan of wind streaks and sparkles streaming from its mouth up through
+ * the text area and off the top of the screen, all inside the BLOW window.
  */
 export function buildParticles(
   seed: number,
   textArea: { x: number; y: number; width: number; height: number },
   mouth: Point,
-  count: { dust: number; breath: number },
+  count: { breath: number; gust: number },
 ): ParticleSpec[] {
   const rnd = mulberry32(seed);
   const pick = <T,>(arr: readonly T[]) => arr[Math.floor(rnd() * arr.length)];
   const out: ParticleSpec[] = [];
+  const span = BLOW.blowEnd - BLOW.blowStart;
 
-  for (let i = 0; i < count.dust; i++) {
-    const from = {
-      x: textArea.x + rnd() * textArea.width,
-      y: textArea.y + rnd() * Math.max(40, textArea.height * 0.85),
+  const fanPath = (k: number, spread: number) => {
+    // k ∈ [0,1] → direction across the fan (left … right), slight S-curl like real breath.
+    const angle = (-0.5 + k) * spread + (rnd() - 0.5) * 0.25; // radians from straight up
+    const reach = mouth.y - textArea.y + 140 + rnd() * 120; // well past the top of the text
+    const to = { x: mouth.x + Math.sin(angle) * reach * 0.9, y: mouth.y - Math.cos(angle) * reach };
+    const curl = (rnd() - 0.5) * 90;
+    return {
+      from: { x: mouth.x + (rnd() - 0.5) * 14, y: mouth.y - 4 },
+      c1: { x: mouth.x + (to.x - mouth.x) * 0.2 + curl, y: mouth.y - (mouth.y - to.y) * 0.3 },
+      c2: { x: mouth.x + (to.x - mouth.x) * 0.7 - curl * 0.6, y: mouth.y - (mouth.y - to.y) * 0.7 },
+      to,
     };
-    const drift = (rnd() - 0.5) * 120;
-    const rise = 70 + rnd() * 130;
-    const start = 0.18 + rnd() * 0.42;
+  };
+
+  for (let i = 0; i < count.gust; i++) {
+    const k = count.gust === 1 ? 0.5 : i / (count.gust - 1);
+    const start = BLOW.blowStart - 0.02 + rnd() * span * 0.7;
     out.push({
-      kind: 'dust',
-      from,
-      c1: { x: from.x + drift * 0.2, y: from.y - rise * 0.4 },
-      c2: { x: from.x + drift * 0.8, y: from.y - rise * 0.8 },
-      to: { x: from.x + drift, y: from.y - rise },
+      kind: 'gust',
+      ...fanPath(k, 1.5),
       start,
-      end: Math.min(1, start + 0.38 + rnd() * 0.18),
-      size: 2 + rnd() * 3.2,
+      end: Math.min(1, start + 0.2 + rnd() * 0.1),
+      size: 34 + rnd() * 46,
       color: pick(SPARKLE_COLORS),
     });
   }
 
-  // Breath ribbon: an S-curve from the mouth to the upper text area.
-  const top = { x: textArea.x + textArea.width * (0.55 + rnd() * 0.3), y: textArea.y + 10 };
   for (let i = 0; i < count.breath; i++) {
-    const k = i / Math.max(1, count.breath - 1);
-    const spread = 26 + k * 40;
-    const jitter = () => (rnd() - 0.5) * spread;
-    const start = 0.08 + k * 0.38;
+    const start = BLOW.blowStart + rnd() * span * 0.8;
     out.push({
       kind: 'breath',
-      from: { x: mouth.x + (rnd() - 0.5) * 18, y: mouth.y },
-      c1: { x: mouth.x - 90 + jitter(), y: mouth.y - (mouth.y - top.y) * 0.35 + jitter() },
-      c2: { x: top.x + 70 + jitter(), y: top.y + (mouth.y - top.y) * 0.45 + jitter() },
-      to: { x: top.x + jitter(), y: top.y + jitter() },
+      ...fanPath(rnd(), 1.7),
       start,
-      end: Math.min(1, start + 0.5),
-      size: 1.6 + rnd() * 2.6,
+      end: Math.min(1, start + 0.28 + rnd() * 0.12),
+      size: 2 + rnd() * 3,
       color: pick(SPARKLE_COLORS),
     });
   }
@@ -106,4 +115,11 @@ export function bezier(t: number, a: number, b: number, c: number, d: number) {
   'worklet';
   const u = 1 - t;
   return u * u * u * a + 3 * u * u * t * b + 3 * u * t * t * c + t * t * t * d;
+}
+
+/** Cubic bézier derivative (direction of travel). */
+export function bezierSlope(t: number, a: number, b: number, c: number, d: number) {
+  'worklet';
+  const u = 1 - t;
+  return 3 * u * u * (b - a) + 6 * u * t * (c - b) + 3 * t * t * (d - c);
 }

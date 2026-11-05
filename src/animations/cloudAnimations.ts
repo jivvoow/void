@@ -48,26 +48,3 @@ export function toMoodScale(target: number) {
   'worklet';
   return withSpring(target, { damping: 14, stiffness: 120, mass: 0.9 });
 }
-
-/**
- * "후우" — inhale, long exhale, settle. Returns [scaleX, scaleY] animations.
- * Total ≈ FADE_DURATION_MS so the breath lines up with the text evaporating.
- */
-export function exhaleSequence(totalMs: number) {
-  'worklet';
-  const inhale = totalMs * 0.18;
-  const exhale = totalMs * 0.52;
-  const settle = totalMs * 0.3;
-  const ease = Easing.out(Easing.quad);
-  const scaleX = withSequence(
-    withTiming(1.05, { duration: inhale, easing: ease }),
-    withTiming(1.06, { duration: exhale, easing: sine }),
-    withTiming(1, { duration: settle, easing: sine }),
-  );
-  const scaleY = withSequence(
-    withTiming(1.08, { duration: inhale, easing: ease }),
-    withTiming(0.92, { duration: exhale, easing: sine }),
-    withTiming(1, { duration: settle, easing: sine }),
-  );
-  return { scaleX, scaleY };
-}

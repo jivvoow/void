@@ -30,12 +30,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { buildParticles, type ParticleSpec } from '../animations/fadeAnimations';
+import { BLOW, buildParticles, type ParticleSpec } from '../animations/fadeAnimations';
 import { CloudCharacter, CLOUD_ASPECT, CLOUD_MOUTH } from '../components/CloudCharacter';
 import { EmotionStream, SPARK_FLIGHT_MS, type EmotionStreamHandle } from '../components/EmotionStream';
 import { CANVAS_PADDING, CANVAS_TEXT_STYLE, EmotionTextInput } from '../components/EmotionTextInput';
 import { FadeOverlay } from '../components/FadeOverlay';
 import { GlyphEvaporation } from '../components/GlyphEvaporation';
+import { GulpPops, type GulpPopsHandle } from '../components/GulpPops';
 import { HintBubble } from '../components/HintBubble';
 import { KeyboardDownIcon, SettingsIcon } from '../components/Icons';
 import { IntensityIndicator } from '../components/IntensityIndicator';
@@ -77,6 +78,8 @@ const KICK: Record<Intensity, { lift: number; jitter: number }> = {
   burst: { lift: 3.6, jitter: 6 },
 };
 const WARMTH: Record<Intensity, number> = { calm: 0.2, building: 0.5, burst: 0.85 };
+/** Minimum gap between "꿀꺽" pop-ups, by intensity (faster venting → more gulping). */
+const GULP_POP_MS: Record<Intensity, number> = { calm: 900, building: 560, burst: 340 };
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
@@ -120,6 +123,8 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
   const [focused, setFocused] = useState(false);
   const [graceMs, setGraceMs] = useState(0);
   const [particles, setParticles] = useState<ParticleSpec[]>([]);
+  // Where the release wind comes from (the cloud's mouth) in the text overlay's coordinates.
+  const [blowGeo, setBlowGeo] = useState({ origin: { x: 0, y: 0 }, reach: 300 });
   const inputRef = useRef<TextInputInstance>(null);
   const clearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fadeSeed = useRef(1);
@@ -187,6 +192,10 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
   const charge = useSharedValue(0); // how full of feelings the cloud is
   const chargeTarget = useRef(0);
   const pulse = useSharedValue(0); // cloud "gulp"
+  const gape = useSharedValue(0); // cloud's mouth open, catching sparks
+  const gulpRef = useRef<GulpPopsHandle>(null);
+  const lastPop = useRef(0);
+  const popSide = useRef<-1 | 1>(1);
   const kick = useSharedValue(0); // words hop on each keystroke
   const kickLift = useSharedValue(0);
   const kickX = useSharedValue(0);
@@ -253,15 +262,34 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
     if (!soft) streamRef.current?.emit(from, cloudTarget(), lv);
 
     const landing = soft ? 0 : SPARK_FLIGHT_MS;
+    // "아~" — the mouth opens for the incoming spark, then snaps shut on the swallow.
+    gape.value = withSequence(
+      withTiming(1, { duration: 110 }),
+      withDelay(Math.max(0, landing - 150), withTiming(0, { duration: 90 })),
+    );
     chargeTarget.current = Math.min(1, chargeTarget.current + CHARGE_STEP[lv]);
     charge.value = withDelay(landing, withTiming(chargeTarget.current, { duration: 260 }));
-    pulse.value = withDelay(landing, withSequence(withTiming(1, { duration: 70 }), withTiming(0, { duration: 280 })));
+    // "꿀꺽": squash on the swallow, springing past rest into a little stretch.
+    pulse.value = withDelay(
+      landing,
+      withSequence(withTiming(1, { duration: 70 }), withSpring(0, { damping: 5, stiffness: 300, mass: 0.6 })),
+    );
+
+    if (!soft && now - lastPop.current > GULP_POP_MS[lv]) {
+      lastPop.current = now;
+      popSide.current = popSide.current === 1 ? -1 : 1;
+      const side = popSide.current;
+      const top = mainH.value + 6 - cloudH * s * (1 + chargeTarget.current * 0.24);
+      const at = { x: win.width / 2 + side * cloudW * s * 0.52, y: top + cloudH * s * 0.28 };
+      const label = t.home.gulps[Math.floor(Math.random() * t.home.gulps.length)];
+      setTimeout(() => gulpRef.current?.pop(at, label, side), landing);
+    }
 
     if (lv === 'burst' && now - lastGulpHaptic.current > 220) {
       lastGulpHaptic.current = now;
       setTimeout(haptics.light, landing);
     }
-  }, [recordInput, soft, kickLift, kickX, kick, kbdVisible, mainH, cloudH, win.width, cloudTarget, charge, pulse, haptics]);
+  }, [recordInput, soft, kickLift, kickX, kick, kbdVisible, mainH, cloudH, cloudW, win.width, cloudTarget, charge, pulse, gape, haptics, t]);
 
   /**
    * "즉시" mode: once every glyph has melted (a short pause), quietly empty the native input
@@ -323,19 +351,24 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
             fadeSeed.current,
             { x: GUTTER + 12, y: 8, width: win.width - GUTTER * 2 - 24, height: textH },
             mouth,
-            { dust: 0, breath: 18 },
+            { breath: 22, gust: 14 },
           ),
     );
+    // Text overlay coords: left edge of the canvas, and content (not screen) y → add the scroll.
+    setBlowGeo({ origin: { x: mouth.x - GUTTER, y: mouth.y + scrollY.current }, reach: Math.max(160, textH + 60) });
 
+    const duration = soft ? 1400 : FADE_DURATION_MS;
     // Everything it swallowed goes out with the breath.
     chargeTarget.current = 0;
-    charge.value = withDelay(FADE_DURATION_MS * 0.18, withTiming(0, { duration: FADE_DURATION_MS * 0.55 }));
+    charge.value = withDelay(duration * BLOW.blowStart, withTiming(0, { duration: duration * 0.45 }));
+    gape.value = 0;
+    if (!soft) setTimeout(haptics.medium, duration * BLOW.blowStart); // the "후우~" itself
 
     fadeProgress.value = 0;
-    fadeProgress.value = withTiming(1, { duration: soft ? 1400 : FADE_DURATION_MS, easing: Easing.linear }, (finished) => {
+    fadeProgress.value = withTiming(1, { duration, easing: Easing.linear }, (finished) => {
       if (finished) scheduleOnRN(finishFade);
     });
-  }, [cloudH, fadeProgress, finishFade, haptics, setPhase, soft, win.width, resetIntensity, charge]);
+  }, [cloudH, fadeProgress, finishFade, haptics, setPhase, soft, win.width, resetIntensity, charge, gape]);
 
   const delayMs =
     settings.fadeDelay == null ? null : settings.fadeDelay === 'instant' ? TRAIL_LIFE_MS + 250 : settings.fadeDelay * 1000;
@@ -672,7 +705,16 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
                   if (e.nativeEvent.actionName === 'activate' && canRelease) startFade();
                 }}
               >
-                <CloudCharacter mood={mood} width={cloudW} soft={soft} charge={charge} pulse={pulse} hold={hold} />
+                <CloudCharacter
+                  mood={mood}
+                  width={cloudW}
+                  soft={soft}
+                  charge={charge}
+                  pulse={pulse}
+                  hold={hold}
+                  gape={gape}
+                  blow={fadeProgress}
+                />
               </Pressable>
             </Animated.View>
 
@@ -700,7 +742,11 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
                   <TrailingText ref={trailRef} textStyle={CANVAS_TEXT_STYLE} padding={CANVAS_PADDING} scrollY={scrollY} />
                 )}
               </Animated.View>
-              {fadeText != null && (
+            </Animated.View>
+
+            {/* The words, blown off by the cloud's breath (unclipped: they fly off-screen) */}
+            {fadeText != null && (
+              <View style={styles.glyphLayer} pointerEvents="none">
                 <GlyphEvaporation
                   text={fadeText}
                   progress={fadeProgress}
@@ -708,12 +754,15 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
                   padding={CANVAS_PADDING}
                   scrollY={scrollY.current}
                   seed={fadeSeedForGlyphs}
+                  origin={blowGeo.origin}
+                  reach={blowGeo.reach}
                 />
-              )}
-            </Animated.View>
+              </View>
+            )}
 
             {/* Sparks of feeling flying from the words into the cloud */}
             <EmotionStream ref={streamRef} />
+            <GulpPops ref={gulpRef} />
 
             {/* "훌훌 날리기" chip above the cloud + one-time hint */}
             {canRelease && (
@@ -801,6 +850,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   chipLayer: { position: 'absolute', top: 0, left: 0, right: 0, alignItems: 'center' },
+  glyphLayer: { position: 'absolute', top: 0, left: GUTTER, right: GUTTER, bottom: 0, overflow: 'visible' },
   chipCol: { alignItems: 'center' },
   bubble: { position: 'absolute', bottom: 46, width: 280, alignItems: 'center' },
 });

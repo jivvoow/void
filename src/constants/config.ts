@@ -12,7 +12,7 @@ export const GRACE_WINDOW_MS = 5000;
 
 
 /** Total length of the evaporation sequence (inhale → glyphs scatter → sparkles settle). */
-export const FADE_DURATION_MS = 3400;
+export const FADE_DURATION_MS = 3800;
 
 /** How long "훌훌, 이제 보내줬어요." stays on screen. */
 export const CLEAR_MESSAGE_MS = 2400;

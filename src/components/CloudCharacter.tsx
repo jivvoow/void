@@ -3,6 +3,8 @@ import { StyleSheet, View } from 'react-native';
 import Animated, {
   cancelAnimation,
   Easing,
+  Extrapolation,
+  interpolate,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
@@ -12,14 +14,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import Svg, { Defs, Ellipse, G, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 
-import {
-  breathLoop,
-  CLOUD_MOOD_TARGETS,
-  exhaleSequence,
-  floatLoop,
-  toMoodScale,
-} from '../animations/cloudAnimations';
-import { FADE_DURATION_MS } from '../constants/config';
+import { breathLoop, CLOUD_MOOD_TARGETS, floatLoop, toMoodScale } from '../animations/cloudAnimations';
+import { BLOW } from '../animations/fadeAnimations';
 import { cloudColors as C } from '../constants/theme';
 import type { CloudMood } from '../types';
 
@@ -41,18 +37,33 @@ interface Props {
   pulse?: SharedValue<number>;
   /** 0 → 1 while the user is holding the cloud to release (it inhales, squishing down). */
   hold?: SharedValue<number>;
+  /** 0 → 1 open mouth: catching the sparks that fly in (snaps shut on each gulp). */
+  gape?: SharedValue<number>;
+  /** The release progress (0 → 1): inhale, big "후우~" blow, relief — see BLOW. */
+  blow?: SharedValue<number>;
 }
 
 /**
  * The one and only cloud. Mood changes colour, size and face — never the silhouette —
  * so every state reads as the same character.
  */
-function CloudCharacterBase({ mood, width, soft = false, charge: chargeIn, pulse: pulseIn, hold: holdIn }: Props) {
+function CloudCharacterBase({
+  mood,
+  width,
+  soft = false,
+  charge: chargeIn,
+  pulse: pulseIn,
+  hold: holdIn,
+  gape: gapeIn,
+  blow: blowIn,
+}: Props) {
   const height = width * CLOUD_ASPECT;
   const zero = useSharedValue(0);
   const charge = chargeIn ?? zero;
   const pulse = pulseIn ?? zero;
   const hold = holdIn ?? zero;
+  const gape = gapeIn ?? zero;
+  const blow = blowIn ?? zero;
   const rays = useSharedValue(0);
 
   const bob = useSharedValue(0);
@@ -60,8 +71,6 @@ function CloudCharacterBase({ mood, width, soft = false, charge: chargeIn, pulse
   const moodScale = useSharedValue(1);
   const pink = useSharedValue(0);
   const glow = useSharedValue(CLOUD_MOOD_TARGETS.rest.glow);
-  const sx = useSharedValue(1);
-  const sy = useSharedValue(1);
   const zz = useSharedValue(0);
 
   // Idle life: float + breathe. Agitated moods breathe faster.
@@ -84,15 +93,6 @@ function CloudCharacterBase({ mood, width, soft = false, charge: chargeIn, pulse
     moodScale.value = soft ? withTiming(1 + (t.scale - 1) * 0.4) : toMoodScale(t.scale);
     pink.value = withTiming(t.pink, { duration: 600 });
     glow.value = withTiming(t.glow, { duration: 600 });
-
-    if (mood === 'fade' && !soft) {
-      const { scaleX, scaleY } = exhaleSequence(FADE_DURATION_MS);
-      sx.value = scaleX;
-      sy.value = scaleY;
-    } else {
-      sx.value = withTiming(1, { duration: 400 });
-      sy.value = withTiming(1, { duration: 400 });
-    }
 
     // Sleepy motion strokes only while resting.
     if (mood === 'rest' && !soft) {
@@ -117,22 +117,46 @@ function CloudCharacterBase({ mood, width, soft = false, charge: chargeIn, pulse
     } else {
       rays.value = withTiming(0, { duration: 250 });
     }
-  }, [mood, soft, moodScale, pink, glow, sx, sy, zz, rays]);
+  }, [mood, soft, moodScale, pink, glow, zz, rays]);
 
   const bodyStyle = useAnimatedStyle(() => {
     const swell = 1 + charge.value * 0.24; // full of feelings → noticeably plumper
-    const gulpX = 1 + pulse.value * 0.06;
-    const gulpY = 1 - pulse.value * 0.04;
+    // Gulp: squash wide, then (spring overshoot below 0) stretch tall — "꿀꺽".
+    const gulpX = 1 + pulse.value * 0.11;
+    const gulpY = 1 - pulse.value * 0.12;
     const squishX = 1 + hold.value * 0.1; // holding: the cloud draws a deep breath in
     const squishY = 1 - hold.value * 0.12;
+    // Release: big inhale → squashed, trembling blow → small relieved settle.
+    const g = soft ? 0 : blow.value;
+    const K = [0, BLOW.inhaleEnd, BLOW.blowStart, BLOW.blowEnd, 0.86, 1];
+    const bx = interpolate(g, K, [1, 1.12, 1.05, 1.02, 0.94, 1], Extrapolation.CLAMP);
+    const by = interpolate(g, K, [1, 1.18, 0.84, 0.88, 0.96, 1], Extrapolation.CLAMP);
+    const shake = g > BLOW.blowStart && g < BLOW.blowEnd ? Math.sin(g * 300) * 1.8 : 0;
     return {
       transform: [
+        { translateX: shake },
         { translateY: bob.value },
-        { scaleX: moodScale.value * swell * gulpX * squishX * (1 + (breath.value - 1) * 0.6) * sx.value },
-        { scaleY: moodScale.value * swell * gulpY * squishY * breath.value * sy.value },
+        { scaleX: moodScale.value * swell * gulpX * squishX * (1 + (breath.value - 1) * 0.6) * bx },
+        { scaleY: moodScale.value * swell * gulpY * squishY * breath.value * by },
       ],
     };
   });
+  // Faces for the release, cross-faded on the same clock as the body.
+  const inhaleFaceStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(blow.value, [0, 0.03, BLOW.inhaleEnd, BLOW.blowStart - 0.02], [0, 1, 1, 0], Extrapolation.CLAMP),
+  }));
+  const blowFaceStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(blow.value, [BLOW.inhaleEnd, BLOW.blowStart - 0.02, BLOW.blowEnd, 0.8], [0, 1, 1, 0], Extrapolation.CLAMP),
+  }));
+  const moodFaceStyle = useAnimatedStyle(() => {
+    const g = blow.value;
+    const special = g > 0.005 && g < 0.8 ? interpolate(g, [0, 0.03, 0.72, 0.8], [0, 1, 1, 0], Extrapolation.CLAMP) : 0;
+    return { opacity: 1 - special };
+  });
+  const gapeStyle = useAnimatedStyle(() => ({
+    opacity: blow.value > 0.005 && blow.value < 0.99 ? 0 : gape.value,
+    transform: [{ scaleY: 0.5 + gape.value * 0.5 }],
+  }));
   const pinkStyle = useAnimatedStyle(() => ({ opacity: Math.max(pink.value, charge.value * 0.8) }));
   const pinkGlowStyle = useAnimatedStyle(() => ({
     opacity: Math.max(pink.value, charge.value) * 0.9,
@@ -174,7 +198,18 @@ function CloudCharacterBase({ mood, width, soft = false, charge: chargeIn, pulse
         <Animated.View style={[StyleSheet.absoluteFill, pinkStyle]}>
           <Body width={width} height={height} tone="pink" />
         </Animated.View>
-        <Face width={width} height={height} mood={mood} />
+        <Animated.View style={[StyleSheet.absoluteFill, moodFaceStyle]}>
+          <Face width={width} height={height} mood={mood} />
+        </Animated.View>
+        <Animated.View style={[StyleSheet.absoluteFill, styles.mouthOrigin, gapeStyle]}>
+          <GapeMouth width={width} height={height} />
+        </Animated.View>
+        <Animated.View style={[StyleSheet.absoluteFill, inhaleFaceStyle]}>
+          <InhaleFace width={width} height={height} />
+        </Animated.View>
+        <Animated.View style={[StyleSheet.absoluteFill, blowFaceStyle]}>
+          <BlowFace width={width} height={height} />
+        </Animated.View>
       </Animated.View>
 
       <Animated.View style={[StyleSheet.absoluteFill, zzStyle]}>
@@ -360,7 +395,7 @@ const Face = memo(function Face({
           <Path d="M129,104 Q136,110 143,104" />
         </G>
       );
-      mouth = <Ellipse cx={120} cy={117} rx={3.2} ry={3.8} fill={C.face} fillOpacity={0.85} />;
+      mouth = <Path d="M114,115 Q120,121 126,115" {...stroke} />;
       break;
     case 'rest':
     default:
@@ -383,7 +418,51 @@ const Face = memo(function Face({
   );
 });
 
+/** "아~" — open mouth catching the incoming sparks. */
+const GapeMouth = memo(function GapeMouth({ width, height }: Size) {
+  return (
+    <Svg width={width} height={height} viewBox={`0 0 ${VB_W} ${VB_H}`}>
+      <Ellipse cx={120} cy={117.5} rx={7.5} ry={7} fill={C.face} />
+      <Ellipse cx={120} cy={121.2} rx={4.4} ry={2.6} fill={C.cheek} />
+    </Svg>
+  );
+});
+
+/** Deep breath in: eyes squeezed, cheeks puffed, lips pressed. */
+const InhaleFace = memo(function InhaleFace({ width, height }: Size) {
+  const stroke = { stroke: C.face, strokeWidth: 2.8, strokeLinecap: 'round' as const, fill: 'none' };
+  return (
+    <Svg width={width} height={height} viewBox={`0 0 ${VB_W} ${VB_H}`}>
+      <Ellipse cx={89} cy={114} rx={12} ry={8} fill={C.cheek} opacity={0.75} />
+      <Ellipse cx={151} cy={114} rx={12} ry={8} fill={C.cheek} opacity={0.75} />
+      <G {...stroke}>
+        <Path d="M97,101 L109,105 L97,108" />
+        <Path d="M143,101 L131,105 L143,108" />
+        <Path d="M116,117 Q120,115.5 124,117" />
+      </G>
+    </Svg>
+  );
+});
+
+/** "후우~": pursed "O" lips, puffed cheeks, eyes shut tight with effort. */
+const BlowFace = memo(function BlowFace({ width, height }: Size) {
+  const stroke = { stroke: C.face, strokeWidth: 2.8, strokeLinecap: 'round' as const, fill: 'none' };
+  return (
+    <Svg width={width} height={height} viewBox={`0 0 ${VB_W} ${VB_H}`}>
+      <Ellipse cx={88} cy={113} rx={13} ry={9} fill={C.cheek} opacity={0.8} />
+      <Ellipse cx={152} cy={113} rx={13} ry={9} fill={C.cheek} opacity={0.8} />
+      <G {...stroke}>
+        <Path d="M97,101 Q104,97 111,101" />
+        <Path d="M129,101 Q136,97 143,101" />
+      </G>
+      <Ellipse cx={120} cy={117} rx={6} ry={6.5} fill="none" stroke={C.face} strokeWidth={3} />
+      <Ellipse cx={120} cy={117} rx={3} ry={3.4} fill={C.face} />
+    </Svg>
+  );
+});
+
 const styles = StyleSheet.create({
+  mouthOrigin: { transformOrigin: '50% 73%' },
   bottomOrigin: { transformOrigin: 'center bottom' },
   glow: { alignItems: 'center', justifyContent: 'center', overflow: 'visible' },
 });

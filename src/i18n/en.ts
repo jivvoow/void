@@ -20,6 +20,7 @@ export const en: Strings = {
           ? 'Each word vanishes as soon as you finish it. Tap to change'
           : `Fades ${s} seconds after you stop. Tap to change`,
     restHint: 'The faster you pour it out, the more the cloud gulps',
+    gulps: ['gulp', 'nom', 'gulp gulp', 'nom nom', 'gulp!'],
     releaseBubble: 'Hold the cloud to blow it all away',
     a11yCloud: 'A cloud full of your feelings. Long-press to blow your words away.',
     a11yKeyboardDown: 'Hide keyboard',
