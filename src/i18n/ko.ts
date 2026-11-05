@@ -74,7 +74,7 @@ export const ko = {
     releaseStyle: '날리는 방식',
     releaseSeeds: '기본 홀씨',
     releaseTear: '찢어서 홀씨',
-    releaseCaption: '‘찢어서 홀씨’는 글이 종이가 돼요. 손가락으로 쭉 그어 찢으면 조각조각 홀씨가 되어 날아가요.',
+    releaseCaption: '‘찢어서 홀씨’는 글이 하늘하늘한 구름 종이가 돼요. 손가락으로 쭉쭉 그으면 그은 대로 찢어지고, 조각조각 홀씨가 되어 날아가요.',
     animation: '애니메이션 강도',
     animationSoft: '은은하게',
     animationFull: '풍성하게',

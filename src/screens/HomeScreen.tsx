@@ -135,6 +135,8 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
     setTearState(v);
   }, []);
   const tearTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const tearDragging = useRef(false);
+  const autoTearRef = useRef<() => void>(() => {});
   const clearTearTimers = () => {
     tearTimers.current.forEach(clearTimeout);
     tearTimers.current = [];
@@ -387,11 +389,37 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
     const cur = tearRef.current;
     if (!cur || !cur.interactive) return;
     clearTearTimers();
+    tearDragging.current = false;
     setTear({ ...cur, interactive: false });
     const { mouth } = releaseLayout();
     // The paper layer sits at the canvas' left edge, top of the main area.
     runBlow({ y: PAPER_TOP, height: cur.paperH }, { x: mouth.x - GUTTER, y: mouth.y });
   }, [releaseLayout, runBlow, setTear]);
+
+  /** Keep tearing, or the cloud blows once you pause (sooner when it's in tatters). */
+  const scheduleTearBlow = useCallback(
+    (cuts: Cuts) => {
+      clearTearTimers();
+      if (tearDragging.current) return; // still tearing — wait for the finger to lift
+      const n = cuts.v.length + cuts.h.length;
+      if (n === 0) {
+        // Touched but didn't tear: let them try again, and tear it for them after a while.
+        tearTimers.current.push(setTimeout(() => autoTearRef.current(), 7000));
+        return;
+      }
+      tearTimers.current.push(setTimeout(blowTear, n >= MAX_CUTS_PER_AXIS * 2 ? 550 : 1500));
+    },
+    [blowTear],
+  );
+  const onTearDragStart = useCallback(() => {
+    tearDragging.current = true;
+    clearTearTimers();
+  }, []);
+  const onTearDragEnd = useCallback(() => {
+    tearDragging.current = false;
+    const cur = tearRef.current;
+    if (cur?.interactive) scheduleTearBlow(cur.cuts);
+  }, [scheduleTearBlow]);
 
   const addCut = useCallback(
     (dir: 'v' | 'h', pos: number) => {
@@ -409,13 +437,10 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
       setTear({ ...cur, cuts });
       haptics.medium();
       sfx.rip();
-      // Keep tearing, or the cloud blows once you pause (sooner when it's in tatters).
-      clearTearTimers();
-      const full = cuts.v.length + cuts.h.length >= MAX_CUTS_PER_AXIS * 2;
-      tearTimers.current.push(setTimeout(blowTear, full ? 550 : 1700));
+      scheduleTearBlow(cuts);
       return true;
     },
-    [paperW, setTear, haptics, sfx, blowTear],
+    [paperW, setTear, haptics, sfx, scheduleTearBlow],
   );
 
   /** Tear it for the user (timer expiry, a tap without swiping, or no swipe for a while). */
@@ -435,6 +460,7 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
     }
     tearTimers.current.push(setTimeout(blowTear, need ? 950 : 150));
   }, [addCut, blowTear, paperW]);
+  autoTearRef.current = autoTear;
 
   const onPaperTap = useCallback(() => {
     const cur = tearRef.current;
@@ -869,6 +895,8 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
                   interactive={tear.interactive}
                   onCut={addCut}
                   onTap={onPaperTap}
+                  onDragStart={onTearDragStart}
+                  onDragEnd={onTearDragEnd}
                   progress={fadeProgress}
                   origin={blowGeo.origin}
                   gentle={soft}

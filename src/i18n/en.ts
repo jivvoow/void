@@ -64,7 +64,7 @@ export const en: Strings = {
     releaseStyle: 'How it flies away',
     releaseSeeds: 'Seeds',
     releaseTear: 'Tear into seeds',
-    releaseCaption: 'With “Tear into seeds” your note turns into paper — swipe to rip it, and the scraps become seeds.',
+    releaseCaption: 'With “Tear into seeds” your note turns into soft cloud paper — drag to rip it as you go, and the scraps become seeds.',
     animation: 'Animation',
     animationSoft: 'Soft',
     animationFull: 'Full',

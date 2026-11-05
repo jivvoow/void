@@ -9,7 +9,7 @@ import Animated, {
   withSpring,
   type SharedValue,
 } from 'react-native-reanimated';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 
 import { BLOW, mulberry32 } from '../animations/fadeAnimations';
 import { fonts } from '../constants/theme';
@@ -19,16 +19,19 @@ export interface Cuts {
   v: number[];
   h: number[];
 }
-export const MAX_CUTS_PER_AXIS = 2;
+export const MAX_CUTS_PER_AXIS = 3;
 /** A new cut must be at least this far from the edges and from other cuts. */
-export const MIN_CUT_GAP = 36;
+export const MIN_CUT_GAP = 30;
+/** While dragging, every this-many px of travel tears along that stretch. */
+const SEGMENT = 60;
 
-const PAPER = '#FFFBF6';
-const INK = '#6E6688';
-const RULE = 'rgba(185, 168, 200, 0.38)';
-const FIBER = '#EFE2D8';
-const FONT = 24;
-const LINE = 32;
+/** A sheet of soft, translucent "cloud tissue" — the sky shows through, white handwriting. */
+const TISSUE_A = 'rgba(255, 244, 247, 0.62)';
+const TISSUE_B = 'rgba(234, 226, 250, 0.40)';
+const EDGE = 'rgba(255, 255, 255, 0.7)';
+const FLUFF = 'rgba(255, 255, 255, 0.95)';
+const FONT = 26;
+const LINE = 36;
 const PAD = 18;
 /** Zigzag of a torn edge: sample spacing and amplitude (px). */
 const ZIG_STEP = 7;
@@ -49,6 +52,9 @@ interface Props {
   interactive: boolean;
   onCut: (dir: 'v' | 'h', pos: number) => void;
   onTap: () => void;
+  /** Finger down / up on the sheet (the cloud waits while you are still tearing). */
+  onDragStart: () => void;
+  onDragEnd: () => void;
   progress: SharedValue<number>;
   /** The cloud's mouth in this layer's coordinates. */
   origin: { x: number; y: number };
@@ -59,9 +65,9 @@ interface Props {
 }
 
 /**
- * "찢어서 홀씨": the note becomes a sheet of paper. Swipe a finger across it to rip it along that
- * line (horizontal swipe → horizontal tear, vertical → vertical). When the cloud blows, every
- * scrap flutters away and crumbles into dandelion seeds.
+ * "찢어서 홀씨": the note becomes a sheet of soft cloud tissue. Drag a finger across it and it rips
+ * along the way — keep dragging and it keeps tearing (each stretch of travel tears in the direction
+ * you moved). When the cloud blows, every scrap flutters away and crumbles into dandelion seeds.
  *
  * Pieces are rectangles of the same sheet, each showing its slice of the full page; the torn
  * look comes from a deterministic zigzag shared by both sides of a cut, so they fit together.
@@ -73,29 +79,50 @@ function TearPaperBase(props: Props) {
   const paperRef = useRef<ViewInstance>(null);
   const paperAt = useRef({ x: 0, y: 0 });
   const prevCuts = useRef<Cuts>({ v: [], h: [] });
+  const seg = useRef({ x: 0, y: 0 });
+  const tore = useRef(false);
+
+  const cutAlong = (x0: number, y0: number, x1: number, y1: number) => {
+    const p = latest.current;
+    const midX = (x0 + x1) / 2 - paperAt.current.x;
+    const midY = (y0 + y1) / 2 - paperAt.current.y;
+    if (Math.abs(x1 - x0) >= Math.abs(y1 - y0)) p.onCut('h', midY);
+    else p.onCut('v', midX);
+    tore.current = true;
+  };
 
   const pan = useMemo(
     () =>
       PanResponder.create({
         onStartShouldSetPanResponder: () => latest.current.interactive,
         onMoveShouldSetPanResponder: () => latest.current.interactive,
-        onPanResponderGrant: () => {
+        onPanResponderGrant: (e) => {
           paperRef.current?.measureInWindow((x, y) => (paperAt.current = { x, y }));
+          seg.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY };
+          tore.current = false;
+          latest.current.onDragStart();
+        },
+        // Keep tearing as long as the finger keeps moving.
+        onPanResponderMove: (_, g) => {
+          if (!latest.current.interactive) return;
+          const s = seg.current;
+          if (Math.hypot(g.moveX - s.x, g.moveY - s.y) >= SEGMENT) {
+            cutAlong(s.x, s.y, g.moveX, g.moveY);
+            seg.current = { x: g.moveX, y: g.moveY };
+          }
         },
         onPanResponderRelease: (_, g) => {
           const p = latest.current;
-          if (!p.interactive) return;
-          const len = Math.hypot(g.dx, g.dy);
-          if (len < 10) {
-            p.onTap();
-            return;
+          if (p.interactive) {
+            const s = seg.current;
+            const x1 = g.x0 + g.dx;
+            const y1 = g.y0 + g.dy;
+            if (!tore.current && Math.hypot(g.dx, g.dy) < 10) p.onTap();
+            else if (Math.hypot(x1 - s.x, y1 - s.y) >= 30) cutAlong(s.x, s.y, x1, y1);
           }
-          if (len < 36) return;
-          const midX = g.x0 + g.dx / 2 - paperAt.current.x;
-          const midY = g.y0 + g.dy / 2 - paperAt.current.y;
-          if (Math.abs(g.dx) >= Math.abs(g.dy)) p.onCut('h', midY);
-          else p.onCut('v', midX);
+          p.onDragEnd();
         },
+        onPanResponderTerminate: () => latest.current.onDragEnd(),
         onPanResponderTerminationRequest: () => false,
       }),
     [],
@@ -365,11 +392,17 @@ function Piece({
         style={[styles.piece, { left: bx0, top: by0, width: bx1 - bx0, height: by1 - by0 }, style]}
         pointerEvents="none"
       >
-        <Svg width={bx1 - bx0 + 3} height={by1 - by0 + 4} style={styles.svg}>
-          <Path d={shape.fill} fill="rgba(110, 90, 140, 0.14)" transform="translate(1.5, 2.5)" />
-          <Path d={shape.fill} fill={PAPER} />
+        <Svg width={bx1 - bx0} height={by1 - by0} style={styles.svg}>
+          <Defs>
+            {/* One gradient across the whole sheet, so the scraps still read as one piece. */}
+            <LinearGradient id="tissue" gradientUnits="userSpaceOnUse" x1={-bx0} y1={-by0} x2={W - bx0} y2={H - by0}>
+              <Stop offset="0" stopColor={TISSUE_A} />
+              <Stop offset="1" stopColor={TISSUE_B} />
+            </LinearGradient>
+          </Defs>
+          <Path d={shape.fill} fill="url(#tissue)" stroke={EDGE} strokeWidth={1.2} />
           {shape.fibres.map((d, i) => (
-            <Path key={i} d={d} stroke={FIBER} strokeWidth={1.2} fill="none" />
+            <Path key={i} d={d} stroke={FLUFF} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" fill="none" />
           ))}
         </Svg>
         <View
@@ -379,7 +412,6 @@ function Piece({
           ]}
         >
           <View style={[styles.page, { left: -clipL, top: -clipT, width: W, height: H }]}>
-            <Ruled height={H} />
             <Text style={styles.text} maxFontSizeMultiplier={1.2}>
               {text}
             </Text>
@@ -392,17 +424,6 @@ function Piece({
     </>
   );
 }
-
-const Ruled = memo(function Ruled({ height }: { height: number }) {
-  const n = Math.max(0, Math.floor((height - PAD) / LINE));
-  return (
-    <>
-      {Array.from({ length: n }, (_, i) => (
-        <View key={i} style={[styles.rule, { top: PAD + (i + 1) * LINE - 5 }]} />
-      ))}
-    </>
-  );
-});
 
 /** A seed released from a scrap as it crumbles, carried on by the same breath. */
 function Tuft({
@@ -447,8 +468,16 @@ const styles = StyleSheet.create({
   svg: { position: 'absolute', left: 0, top: 0 },
   clip: { position: 'absolute', overflow: 'hidden' },
   page: { position: 'absolute', paddingHorizontal: PAD, paddingTop: PAD },
-  rule: { position: 'absolute', left: PAD - 4, right: PAD - 4, height: 1, backgroundColor: RULE },
-  text: { fontFamily: fonts.hand, fontSize: FONT, lineHeight: LINE, color: INK, includeFontPadding: false },
+  text: {
+    fontFamily: fonts.hand,
+    fontSize: FONT,
+    lineHeight: LINE,
+    color: '#FFFFFF',
+    includeFontPadding: false,
+    textShadowColor: 'rgba(110, 90, 140, 0.35)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
+  },
   hint: {
     marginTop: 14,
     alignSelf: 'center',
