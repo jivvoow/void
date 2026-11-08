@@ -5,6 +5,40 @@
 짜증·분노·답답함을 마음껏 타이핑하면, 구름이 "후우" 하고 숨을 내쉬며 글이 반짝임으로 흩어지는 감정 배출 앱.
 React Native + Expo (SDK 58) + TypeScript + Reanimated 4. 서버·로그인·저장 없음, 완전 오프라인.
 
+## 다운로드
+
+### 안드로이드
+1. [**Releases**](https://github.com/jivvoow/void/releases/latest) 에서 `hulhul-vX.Y.Z.apk` 를 휴대폰으로 다운로드
+2. 파일을 열고 **"출처를 알 수 없는 앱 설치" 허용** (처음 한 번)
+3. 설치하면 홈 화면에 구름 아이콘 **훌훌** 이 생겨요
+
+> 스토어를 거치지 않은 앱이라 Play 프로텍트가 경고를 띄울 수 있어요. 이 앱은 서버가 없고, 쓴 글을 저장하거나 어디로도 보내지 않아요.
+
+### 아이폰
+애플은 앱스토어 밖에서 설치 파일을 나눠 주는 걸 허용하지 않아서, GitHub로는 배포할 수 없어요.
+대신 PC에서 아래 [실행](#실행) 방법으로 띄운 뒤 **Expo Go** 앱으로 QR을 찍으면 열 수 있어요.
+
+## 새 버전 배포 (개발자용)
+
+GitHub Actions가 태그를 받으면 EAS 클라우드에서 APK를 빌드해 Releases에 올려요 ([`release-apk.yml`](.github/workflows/release-apk.yml)).
+
+**처음 한 번만**
+```bash
+npx eas-cli@latest login     # Expo 계정 (무료)
+npx eas-cli@latest init      # app.json 에 projectId 가 추가됨 → 커밋
+```
+그리고 [expo.dev → Access tokens](https://expo.dev/settings/access-tokens)에서 토큰을 만들어
+GitHub 저장소 **Settings → Secrets and variables → Actions** 에 `EXPO_TOKEN` 으로 저장.
+
+**배포할 때마다**
+```bash
+# app.json 의 "version" 을 올리고 커밋한 뒤 (예: 0.1.0 → 0.2.0)
+git tag v0.2.0
+git push origin v0.2.0       # → 약 10~30분 뒤 Releases 에 APK 가 올라와요
+```
+직접 빌드만 해 보고 싶으면: `npx eas-cli@latest build -p android --profile preview` (APK 다운로드 링크가 나옴).
+아이콘·스플래시는 `python scripts/gen_icons.py` 로 다시 만들 수 있어요.
+
 ## 실행
 
 ```bash
@@ -23,7 +57,7 @@ npm run typecheck       # TypeScript 검사
 | 메인 화면, 구름, 그라데이션, 입력, 자동/직접 소멸 | ✅ | |
 | Reanimated 애니메이션, SVG, 햅틱 | ✅ | |
 | 앱 전환 화면 보호 (iOS 블러, Android FLAG_SECURE) | ✅ (Expo Go 자체 설정과 섞일 수 있음) | 정확한 확인은 개발 빌드 권장 |
-| 앱 이름 "훌훌"·아이콘·스플래시 | ❌ (Expo Go 아이콘으로 표시) | ✅ `npx expo run:android` / `eas build --profile development` |
+| 앱 이름 "훌훌"·아이콘·스플래시 | ❌ (Expo Go 아이콘으로 표시) | ✅ Releases 의 APK, 또는 `eas build -p android --profile preview` |
 | 효과음 (`expo-audio`, 앱 안에 내장된 자체 합성음) | ✅ | 무음 모드에서는 울리지 않음. 소리 파일은 `scripts/gen_sounds.py`로 다시 만들 수 있음 |
 
 ## 구조
