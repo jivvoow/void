@@ -74,7 +74,7 @@ npm run typecheck
 
 **PC 없이 Expo Go로 보기 (EAS Update)**
 ```bash
-npm run update -- --message "변경 내용"   # = eas update --branch main
+npm run update -- --message "변경 내용"   # = eas update --branch main --environment preview
 ```
 올린 버전은 [EAS 대시보드](https://expo.dev/accounts/jivvoow/projects/void-app/updates)의 업데이트 → **Preview** QR로 Expo Go에서 열 수 있어요. 런타임은 `exposdk:58.0.0`이에요. 설치된 APK는 업데이트를 자동으로 확인하지 않아요(`checkAutomatically: NEVER`).
 

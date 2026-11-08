@@ -33,7 +33,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "update": "eas update --branch main"
+    "update": "eas update --branch main --environment preview"
   },
   "private": true
 }
