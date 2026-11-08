@@ -77,7 +77,7 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(92, 84, 122, 0.55)' },
+  backdrop: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(92, 84, 122, 0.55)' },
   top: { alignItems: 'flex-end', paddingHorizontal: 20 },
   skip: { paddingVertical: 8, paddingHorizontal: 6 },
   skipText: { fontFamily: fonts.hand, fontSize: 19, color: 'rgba(255,255,255,0.85)' },

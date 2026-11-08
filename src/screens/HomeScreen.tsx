@@ -7,7 +7,7 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  type TextInputInstance,
+  TextInput,
   useWindowDimensions,
   View,
   type LayoutChangeEvent,
@@ -144,7 +144,7 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
   };
   const releaseStyleRef = useRef(settings.releaseStyle);
   releaseStyleRef.current = settings.releaseStyle;
-  const inputRef = useRef<TextInputInstance>(null);
+  const inputRef = useRef<TextInput>(null);
   const clearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fadeSeed = useRef(1);
   const [pickerOpen, setPickerOpen] = useState(false);

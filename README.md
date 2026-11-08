@@ -60,20 +60,20 @@
 
 ## Download
 - **Android:** [Releases](https://github.com/jivvoow/void/releases/latest)에서 APK를 받아 설치해요. 처음 한 번은 "출처를 알 수 없는 앱 설치"를 허용해야 해요.
-- **iOS:** 현재 설치 파일은 제공하지 않아요. App Store의 Expo Go는 SDK 54까지만 지원해서 이 프로젝트(SDK 58)를 열 수 없어요. iPhone에서 실행하려면 Apple Developer Program 가입 후 EAS 빌드(또는 `eas go`로 만든 TestFlight용 Expo Go)가 필요해요.
+- **iOS:** 현재 설치 파일은 제공하지 않아요. App Store의 **Expo Go** 앱으로 실행할 수 있어요 ([Getting Started](#getting-started)). 이 프로젝트는 App Store Expo Go가 지원하는 마지막 버전인 **Expo SDK 54**를 써요.
 
 ---
 
 ## Getting Started
 ```bash
 npm install
-npx expo start      # Android의 Expo Go(SDK 58 지원 버전)로 QR 스캔. 연결이 안 되면 --tunnel
+npx expo start      # Expo Go(SDK 54)로 QR 스캔 (iPhone은 기본 카메라). 연결이 안 되면 --tunnel
 npm run typecheck
 ```
 앱 아이콘·이름·스플래시는 Expo Go에서 보이지 않아요. APK에서 확인할 수 있어요.
 
 ## Tech Stack
-React Native 0.88 · Expo SDK 58 · TypeScript · Reanimated 4 · react-native-svg · expo-audio · expo-haptics · expo-screen-capture · AsyncStorage(설정값만) · Gamja Flower 폰트(SIL OFL)
+React Native 0.81 · Expo SDK 54 · TypeScript · Reanimated 4 · react-native-svg · expo-audio · expo-haptics · expo-screen-capture · AsyncStorage(설정값만) · Gamja Flower 폰트(SIL OFL)
 
 ## Project Structure
 ```

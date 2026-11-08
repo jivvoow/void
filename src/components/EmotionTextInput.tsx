@@ -1,5 +1,5 @@
 import { memo, type Ref } from 'react';
-import { Platform, StyleSheet, TextInput, type TextInputInstance, type TextStyle } from 'react-native';
+import { Platform, StyleSheet, TextInput, type TextStyle } from 'react-native';
 
 import { fonts, palette } from '../constants/theme';
 
@@ -16,7 +16,7 @@ export const CANVAS_TEXT_STYLE: TextStyle = {
 export const CANVAS_PADDING = { top: 8, horizontal: 18 };
 
 interface Props {
-  ref?: Ref<TextInputInstance>;
+  ref?: Ref<TextInput>;
   /** `card` = resting glass card at the bottom, `canvas` = big handwriting while venting. */
   mode: 'card' | 'canvas';
   /** Draw the native glyphs transparent (caret stays) — "즉시" mode paints them via TrailingText. */
