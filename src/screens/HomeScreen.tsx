@@ -382,11 +382,12 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
     if (!cur || !cur.interactive) return;
     clearTearTimers();
     tearDragging.current = false;
+    sfx.tearStop();
     setTear({ ...cur, interactive: false });
     const { mouth } = releaseLayout();
     // The paper layer sits at the canvas' left edge, top of the main area.
     runBlow({ y: PAPER_TOP, height: cur.paperH }, { x: mouth.x - GUTTER, y: mouth.y });
-  }, [releaseLayout, runBlow, setTear]);
+  }, [releaseLayout, runBlow, setTear, sfx]);
 
   /** Keep tearing, or the cloud blows once you pause (sooner when it's in tatters). */
   const scheduleTearBlow = useCallback(() => {
@@ -406,8 +407,23 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
   }, []);
   const onTearDragEnd = useCallback(() => {
     tearDragging.current = false;
+    sfx.tearStop();
     scheduleTearBlow();
-  }, [scheduleTearBlow]);
+  }, [scheduleTearBlow, sfx]);
+
+  /** The finger is dragging across the sheet: tearing sound + little fibre ticks under it. */
+  const scrubTick = useRef(0);
+  const onTearScrub = useCallback(
+    (speed: number, dist: number) => {
+      sfx.tearScrub(speed);
+      scrubTick.current += dist;
+      if (scrubTick.current >= 36) {
+        scrubTick.current = 0;
+        haptics.tick();
+      }
+    },
+    [sfx, haptics],
+  );
 
   /** The sheet just ripped (by finger or by autoTear). */
   const onTorn = useCallback(
@@ -877,6 +893,7 @@ export function HomeScreen({ onOpenSettings, settingsOpen }: Props) {
                   onTap={onPaperTap}
                   onDragStart={onTearDragStart}
                   onDragEnd={onTearDragEnd}
+                  onScrub={onTearScrub}
                   progress={fadeProgress}
                   origin={blowGeo.origin}
                   gentle={soft}

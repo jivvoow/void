@@ -1,4 +1,6 @@
-﻿"""Synthesise the app's tiny sound effects (original, no samples) as 16-bit mono WAVs."""
+"""Synthesise the app's tiny sound effects (original, no samples) as 16-bit mono WAVs.
+
+Paper-tearing sounds live in gen_tear_sounds.py."""
 import math, os, random, struct, wave
 
 SR = 22050
@@ -35,7 +37,7 @@ def lowpass(xs, alpha):
     return out
 
 
-# gulp ??a round little "轅爰?: pitch drops quickly, then a tiny second bloop.
+# gulp — a round little "꿀꺽": pitch drops quickly, then a tiny second bloop.
 def gulp():
     out = []
     for part, (dur, f0, f1, amp) in enumerate([(0.11, 620, 210, 1.0), (0.08, 420, 160, 0.55)]):
@@ -52,7 +54,7 @@ def gulp():
     return out
 
 
-# blow ??"?꾩슦~": breathy noise that swells then trails off, filter opening with the breath.
+# blow — "후우~": breathy noise that swells then trails off, filter opening with the breath.
 def blow():
     dur = 0.95
     n = int(dur * SR)
@@ -68,7 +70,7 @@ def blow():
     return out
 
 
-# seeds ??airy twinkles scattering upward (a few soft high pings, randomly placed).
+# seeds — airy twinkles scattering upward (a few soft high pings, randomly placed).
 def seeds():
     dur = 1.1
     n = int(dur * SR)
@@ -89,7 +91,7 @@ def seeds():
     return [s + 0.18 * a * math.sin(math.pi * i / n) for i, (s, a) in enumerate(zip(out, air))]
 
 
-# clear ??gentle two-note bell, "?뚰썙, ?댁젣 蹂대궡以ъ뼱??.
+# clear — gentle two-note bell, "훌훌, 이제 보내줬어요".
 def clear():
     dur = 1.4
     n = int(dur * SR)
@@ -103,7 +105,7 @@ def clear():
     return out
 
 
-# puff ??instant mode: a soft little "?? of air when the melted line clears.
+# puff — instant mode: a soft little "퐁" of air when the melted line clears.
 def puff():
     dur = 0.22
     n = int(dur * SR)
@@ -118,35 +120,10 @@ def puff():
     return out
 
 
-# rip — paper tearing: a dense run of tiny fibre snaps riding a brief papery hiss.
-def rip():
-    dur = 0.34
-    n = int(dur * SR)
-    out = [0.0] * n
-    hiss = [random.uniform(-1, 1) for _ in range(n)]
-    hp, prev = [], 0.0
-    for x in hiss:  # crude high-pass → papery
-        hp.append(x - prev * 0.6)
-        prev = x
-    for i in range(n):
-        t = i / n
-        e = min(1, t / 0.05) * (1 - t) ** 1.3
-        out[i] = 0.35 * hp[i] * e
-    snaps = int(70 + random.random() * 20)
-    for _ in range(snaps):
-        c = int(random.betavariate(1.6, 2.2) * (n - 200))
-        amp = random.uniform(0.3, 1.0)
-        for j in range(random.randint(25, 90)):
-            out[c + j] += amp * random.uniform(-1, 1) * math.exp(-j / 18)
-    return out
-
-
 write('gulp.wav', gulp(), 0.7)
 write('blow.wav', blow(), 0.75)
 write('seeds.wav', seeds(), 0.55)
 write('clear.wav', clear(), 0.5)
 write('puff.wav', puff(), 0.5)
-write('rip.wav', rip(), 0.6)
 for f in sorted(os.listdir(OUT)):
     print(f, os.path.getsize(os.path.join(OUT, f)))
-

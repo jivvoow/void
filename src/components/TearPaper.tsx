@@ -63,6 +63,8 @@ interface Props {
   /** Finger down / up on the sheet (the cloud waits while you are still tearing). */
   onDragStart: () => void;
   onDragEnd: () => void;
+  /** Every drag move: finger speed (px/s) and distance since the last move (px). */
+  onScrub: (speed: number, dist: number) => void;
   progress: SharedValue<number>;
   /** The cloud's mouth in this layer's coordinates. */
   origin: { x: number; y: number };
@@ -164,6 +166,7 @@ function TearPaperBase(props: Props) {
   const paperAt = useRef({ x: 0, y: 0 });
   const stroke = useRef<Pt[]>([]);
   const moved = useRef(0);
+  const lastMove = useRef({ t: 0, speed: 0 });
   const tore = useRef(false);
   const live = useRef<LiveTearHandle>(null);
   const tearRef = useRef(tearAlong);
@@ -185,6 +188,7 @@ function TearPaperBase(props: Props) {
         paperRef.current?.measureInWindow((x, y) => (paperAt.current = { x, y }));
         stroke.current = [toLocal(pageX, pageY)];
         moved.current = 0;
+        lastMove.current = { t: Date.now(), speed: 0 };
         tore.current = false;
         latest.current.onDragStart();
       },
@@ -196,6 +200,12 @@ function TearPaperBase(props: Props) {
         const d = Math.hypot(p.x - last.x, p.y - last.y);
         if (d < 3) return;
         moved.current += d;
+        // The tearing sound follows the finger: how fast it is moving right now.
+        const now = Date.now();
+        const dt = Math.max(8, now - lastMove.current.t);
+        const speed = lastMove.current.speed * 0.4 + ((d / dt) * 1000) * 0.6;
+        lastMove.current = { t: now, speed };
+        latest.current.onScrub(speed, d);
         s.push(p);
         live.current?.set(s);
         // Ran off the sheet: that tear is complete — rip now and keep going with a fresh one.
