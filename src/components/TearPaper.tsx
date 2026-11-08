@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from 'react';
-import { PanResponder, StyleSheet, Text, View, type TextLayoutEvent } from 'react-native';
+import { PanResponder, StyleSheet, Text, View, type TextLayoutEvent, type ViewInstance } from 'react-native';
 
 type TextLayoutLine = TextLayoutEvent['nativeEvent']['lines'][number];
 import Animated, {
@@ -162,7 +162,7 @@ function TearPaperBase(props: Props) {
   );
 
   /* ───────── the finger ───────── */
-  const paperRef = useRef<View>(null);
+  const paperRef = useRef<ViewInstance>(null);
   const paperAt = useRef({ x: 0, y: 0 });
   const stroke = useRef<Pt[]>([]);
   const moved = useRef(0);

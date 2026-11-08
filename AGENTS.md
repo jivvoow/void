@@ -45,4 +45,4 @@ Docs: https://docs.expo.dev/eas/index.md
 - Intentionally a single screen (`src/screens/HomeScreen.tsx`) whose REST/VENT/FADE states are state, not routes; Settings is a `Modal`. Expo Router is not used — don't add it unless real multi-screen navigation appears.
 - Never store, log, or persist the user's text. It lives in one `useRef` + the native input only.
 - Keep the text input uncontrolled (no `value` prop) to protect Korean IME composition.
-- Pinned to **Expo SDK 54** on purpose: the App Store build of Expo Go stops at SDK 54, and the owner tests on iPhone via Expo Go. Don't upgrade the SDK without asking.
+- The owner tests on iPhone via Expo Go (currently an SDK 58 Expo Go) and EAS Update (`runtimeVersion` policy `sdkVersion` = `exposdk:<sdk>`). Keep the SDK matching their Expo Go; don't change it without asking.

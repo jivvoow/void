@@ -60,14 +60,14 @@
 
 ## Download
 - **Android:** [Releases](https://github.com/jivvoow/void/releases/latest)에서 APK를 받아 설치해요. 처음 한 번은 "출처를 알 수 없는 앱 설치"를 허용해야 해요.
-- **iOS:** 현재 설치 파일은 제공하지 않아요. App Store의 **Expo Go** 앱으로 실행할 수 있어요 (아래 Getting Started, 또는 EAS Update로 올린 버전). 이 프로젝트는 App Store Expo Go가 지원하는 마지막 버전인 **Expo SDK 54**를 써요.
+- **iOS:** 현재 설치 파일은 제공하지 않아요. **SDK 58을 지원하는 Expo Go**가 있으면 실행할 수 있어요 (아래 Getting Started, 또는 EAS Update로 올린 버전).
 
 ---
 
 ## Getting Started
 ```bash
 npm install
-npx expo start      # Expo Go(SDK 54)로 QR 스캔 (iPhone은 기본 카메라). 연결이 안 되면 --tunnel
+npx expo start      # Expo Go(SDK 58)로 QR 스캔 (iPhone은 기본 카메라). 연결이 안 되면 --tunnel
 npm run typecheck
 ```
 앱 아이콘·이름·스플래시는 Expo Go에서 보이지 않아요. APK에서 확인할 수 있어요.
@@ -76,10 +76,10 @@ npm run typecheck
 ```bash
 npm run update -- --message "변경 내용"   # = eas update --branch main
 ```
-올린 버전은 [EAS 대시보드](https://expo.dev/accounts/jivvoow/projects/void-app/updates)의 업데이트 → **Preview** QR로 Expo Go에서 열 수 있어요. 런타임은 `exposdk:54.0.0`이에요. 설치된 APK는 업데이트를 자동으로 확인하지 않아요(`checkAutomatically: NEVER`).
+올린 버전은 [EAS 대시보드](https://expo.dev/accounts/jivvoow/projects/void-app/updates)의 업데이트 → **Preview** QR로 Expo Go에서 열 수 있어요. 런타임은 `exposdk:58.0.0`이에요. 설치된 APK는 업데이트를 자동으로 확인하지 않아요(`checkAutomatically: NEVER`).
 
 ## Tech Stack
-React Native 0.81 · Expo SDK 54 · TypeScript · Reanimated 4 · react-native-svg · expo-audio · expo-haptics · expo-screen-capture · AsyncStorage(설정값만) · Gamja Flower 폰트(SIL OFL)
+React Native 0.88 · Expo SDK 58 · TypeScript · Reanimated 4 · react-native-svg · expo-audio · expo-haptics · expo-screen-capture · AsyncStorage(설정값만) · Gamja Flower 폰트(SIL OFL)
 
 ## Project Structure
 ```
