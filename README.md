@@ -60,7 +60,11 @@
 
 ## Download
 - **Android:** [Releases](https://github.com/jivvoow/void/releases/latest)에서 APK를 받아 설치해요. 처음 한 번은 "출처를 알 수 없는 앱 설치"를 허용해야 해요.
-- **iOS:** 현재 설치 파일은 제공하지 않아요. **SDK 58을 지원하는 Expo Go**가 있으면 실행할 수 있어요 (아래 Getting Started, 또는 EAS Update로 올린 버전).
+- **iOS:** 설치 파일은 제공하지 않아요. 대신 **Expo Go(SDK 58)**로 EAS Update에 올린 버전을 PC 없이 열 수 있어요.
+  1. [EAS 대시보드](https://expo.dev/accounts/jivvoow/projects/void-app/updates)에서 최신 업데이트 → **Preview** QR을 아이폰 **기본 카메라**로 스캔해요. Expo Go 안에는 스캐너가 없어요.
+  2. 한 번 열고 나면 Expo Go 홈의 **최근에 연 프로젝트**에서 바로 열 수 있어요.
+  3. 새 업데이트를 올리면 새 QR로 한 번 다시 열어 주세요.
+  - 다른 계정이나 다른 기기에서도 열리는지는 아직 확인하지 않았어요. Expo Go의 SDK 버전이 다르면 열리지 않아요.
 
 ---
 
@@ -71,6 +75,11 @@ npx expo start      # Expo Go(SDK 58)로 QR 스캔 (iPhone은 기본 카메라).
 npm run typecheck
 ```
 앱 아이콘·이름·스플래시는 Expo Go에서 보이지 않아요. APK에서 확인할 수 있어요.
+
+**스크린샷 찍을 때**
+- Expo Go에서는 Expo Go의 개발자 메뉴와 도구 버튼이 함께 찍힐 수 있어요. 이건 앱 코드로 끌 수 없어요.
+  - 폰을 흔들거나 세 손가락으로 길게 눌러 개발자 메뉴를 연 다음, 떠 있는 도구 버튼과 시작할 때 메뉴 보이기를 끄세요.
+- Android APK에는 Expo Go 메뉴가 없어요. 대신 글이 화면에 있는 동안은 개인정보 보호 때문에 캡처가 막혀요. 첫 화면, 설정, 안내 화면은 캡처할 수 있어요.
 
 **PC 없이 Expo Go로 보기 (EAS Update)**
 ```bash
