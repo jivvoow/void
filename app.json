@@ -54,6 +54,13 @@
         "projectId": "c382991b-2d2e-4bd6-a195-55c992d7bcfd"
       }
     },
-    "owner": "jivvoow"
+    "owner": "jivvoow",
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/c382991b-2d2e-4bd6-a195-55c992d7bcfd",
+      "checkAutomatically": "NEVER"
+    }
   }
 }
